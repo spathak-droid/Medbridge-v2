@@ -16,6 +16,7 @@ import { ExerciseLibraryPage } from './pages/ExerciseLibraryPage'
 import { MessagesPage } from './pages/MessagesPage'
 import { HealthPage } from './pages/HealthPage'
 import { LandingPage } from './pages/LandingPage'
+import { FindingsPage } from './pages/FindingsPage'
 import { PatientLogin } from './pages/auth/PatientLogin'
 import { PatientSignup } from './pages/auth/PatientSignup'
 import { ClinicianLogin } from './pages/auth/ClinicianLogin'
@@ -67,6 +68,7 @@ function App() {
     <Routes>
       {/* Public */}
       <Route path="/landing" element={<LandingPage />} />
+      <Route path="/findings" element={<FindingsPage />} />
       <Route path="/patient/login" element={<PatientLogin />} />
       <Route path="/patient/signup" element={<PatientSignup />} />
       <Route path="/clinician/login" element={<ClinicianLogin />} />
