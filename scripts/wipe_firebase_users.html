@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head><title>Wipe Firebase Users Collection</title></head>
+<body>
+  <h2>Wipe Firestore 'users' Collection</h2>
+  <button id="wipe" style="padding:12px 24px;font-size:16px;cursor:pointer;">Delete All Users Docs</button>
+  <pre id="log"></pre>
+
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js'
+    import { getFirestore, collection, getDocs, deleteDoc, doc } from 'https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js'
+    import { getAuth, signInWithEmailAndPassword } from 'https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js'
+
+    const app = initializeApp({
+      apiKey: "AIzaSyDwkw8NnpewwyqYS9HzVcZLxEeATCpVj1Q",
+      authDomain: "medbridge-87457.firebaseapp.com",
+      projectId: "medbridge-87457",
+      storageBucket: "medbridge-87457.firebasestorage.app",
+      messagingSenderId: "734645851785",
+      appId: "1:734645851785:web:a09fbcd93e8d7811cf1858",
+    })
+    const db = getFirestore(app)
+    const log = document.getElementById('log')
+
+    document.getElementById('wipe').onclick = async () => {
+      log.textContent = 'Fetching users collection...\n'
+      try {
+        const snap = await getDocs(collection(db, 'users'))
+        log.textContent += `Found ${snap.size} documents\n`
+        for (const d of snap.docs) {
+          await deleteDoc(doc(db, 'users', d.id))
+          log.textContent += `Deleted: ${d.id} (${JSON.stringify(d.data())})\n`
+        }
+        log.textContent += '\nDone! Now delete users in Firebase Auth console and re-signup.\n'
+        // Also clear localStorage
+        const keys = Object.keys(localStorage).filter(k => k.startsWith('medbridge_'))
+        keys.forEach(k => localStorage.removeItem(k))
+        log.textContent += `Cleared ${keys.length} localStorage entries.\n`
+      } catch (e) {
+        log.textContent += `Error: ${e.message}\n`
+      }
+    }
+  </script>
+</body>
+</html>
