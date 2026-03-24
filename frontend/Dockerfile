@@ -3,16 +3,14 @@ FROM node:20-alpine AS build
 WORKDIR /app
 
 # Copy package files
-COPY package.json package-lock.json* ./
+COPY frontend/package.json frontend/package-lock.json* ./
 
 RUN npm install
 
-# Copy source and env files
-COPY . .
-# Copy root .env for FIREBASE_ vars during build
-COPY ../.env.build .env.build 2>/dev/null || true
+# Copy frontend source
+COPY frontend/ .
 
-# Build
+# Build (VITE_ env vars are baked in at build time)
 RUN npm run build
 
 # Serve with lightweight static server
@@ -21,4 +19,5 @@ RUN npm install -g serve
 WORKDIR /app
 COPY --from=build /app/dist ./dist
 
+EXPOSE 3000
 CMD ["serve", "-s", "dist", "-l", "3000"]
