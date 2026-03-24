@@ -32,9 +32,15 @@ def _ensure_firebase():
     from firebase_admin import credentials
 
     cred_path = os.getenv("FIREBASE_SERVICE_ACCOUNT_PATH")
+    project_id = os.getenv("FIREBASE_PROJECT_ID") or os.getenv("GOOGLE_CLOUD_PROJECT")
+
     if cred_path and os.path.exists(cred_path):
         cred = credentials.Certificate(cred_path)
         firebase_admin.initialize_app(cred)
+    elif project_id:
+        # Initialize with just project ID — can verify tokens using Google's public keys
+        firebase_admin.initialize_app(options={"projectId": project_id})
+        logger.info("Firebase initialized with project ID: %s", project_id)
     else:
         # In dev mode without credentials, skip Firebase init
         if _is_dev_mode():
@@ -93,8 +99,13 @@ async def get_current_user(
 
     token = credentials.credentials
 
-    # In dev mode without Firebase credentials, reject — require X-Demo-User header instead
-    if _is_dev_mode() and not os.getenv("FIREBASE_SERVICE_ACCOUNT_PATH"):
+    # In dev mode without any Firebase config, reject — require X-Demo-User header
+    has_firebase = (
+        os.getenv("FIREBASE_SERVICE_ACCOUNT_PATH")
+        or os.getenv("FIREBASE_PROJECT_ID")
+        or os.getenv("GOOGLE_CLOUD_PROJECT")
+    )
+    if _is_dev_mode() and not has_firebase:
         raise HTTPException(
             status_code=401,
             detail="Firebase not configured. Use X-Demo-User header in dev mode.",
