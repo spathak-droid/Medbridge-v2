@@ -13,7 +13,7 @@ export function SettingsPage() {
 }
 
 function ClinicianSettings() {
-  const { user, signOut } = useAuth()
+  const { user } = useAuth()
 
   return (
     <div className="p-4 sm:p-6 max-w-3xl mx-auto w-full animate-fade-in">

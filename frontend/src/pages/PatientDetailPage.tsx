@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useParams, Link } from 'react-router-dom'
 import { usePatient } from '../hooks/usePatient'
 import {
   createReminder,
@@ -29,7 +29,6 @@ export function PatientDetailPage() {
   const { id } = useParams<{ id: string }>()
   const patientId = Number(id)
   const { setPatientId } = usePatient()
-  const navigate = useNavigate()
 
   useEffect(() => {
     if (patientId) setPatientId(patientId)
@@ -105,7 +104,6 @@ export function PatientDetailPage() {
     )
   }
 
-  const confirmedGoal = goals.find(g => g.confirmed)
   const programProgress = adherence
     ? Math.round((adherence.days_completed / Math.max(adherence.total_days_in_program, 1)) * 100)
     : 0

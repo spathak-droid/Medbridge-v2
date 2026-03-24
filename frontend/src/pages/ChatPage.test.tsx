@@ -66,7 +66,7 @@ function mockStreamWithImmediateDone() {
  */
 function mockStreamNeverResolves() {
   vi.mocked(api.sendMessageStream).mockImplementation(
-    () => new AbortController()
+    () => Promise.resolve(new AbortController())
   )
 }
 

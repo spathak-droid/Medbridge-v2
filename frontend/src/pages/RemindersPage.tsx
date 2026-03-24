@@ -48,7 +48,7 @@ export function RemindersPage() {
     .filter((e) => e.status === 'SENT' && e.message)
     .sort((a, b) => new Date(b.executed_at || b.scheduled_at).getTime() - new Date(a.executed_at || a.scheduled_at).getTime())
 
-  const skipped = events.filter((e) => e.status === 'SKIPPED')
+  const _skipped = events.filter((e) => e.status === 'SKIPPED')
 
   return (
     <div className="p-4 sm:p-6 max-w-3xl mx-auto w-full animate-fade-in">
