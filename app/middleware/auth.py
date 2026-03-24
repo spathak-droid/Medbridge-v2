@@ -115,15 +115,15 @@ async def get_current_user(
         _ensure_firebase()
         from firebase_admin import auth
 
-        decoded = auth.verify_id_token(token, check_revoked=True)
+        decoded = auth.verify_id_token(token, check_revoked=False)
     except Exception as exc:
         error_msg = str(exc)
+        logger.warning("Firebase token verification failed: %s", error_msg)
         if "expired" in error_msg.lower():
             raise HTTPException(status_code=403, detail="Token expired — re-authenticate")
         if "revoked" in error_msg.lower():
             raise HTTPException(status_code=401, detail="Token revoked — re-authenticate")
-        logger.warning("Firebase token verification failed: %s", error_msg)
-        raise HTTPException(status_code=401, detail="Invalid authentication token")
+        raise HTTPException(status_code=401, detail=f"Invalid authentication token: {error_msg[:100]}")
 
     uid = decoded.get("uid", "")
     email = decoded.get("email")
