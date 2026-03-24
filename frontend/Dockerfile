@@ -2,7 +2,7 @@ FROM node:20-alpine AS build
 
 WORKDIR /app
 
-# Copy package files
+# Copy package files from frontend/
 COPY frontend/package.json frontend/package-lock.json* ./
 
 RUN npm install
@@ -10,7 +10,7 @@ RUN npm install
 # Copy frontend source
 COPY frontend/ .
 
-# Build (VITE_ env vars are baked in at build time)
+# Firebase env vars are set via Railway env vars and available at build time
 RUN npm run build
 
 # Serve with lightweight static server
