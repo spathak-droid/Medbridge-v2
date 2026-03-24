@@ -52,7 +52,7 @@ const mockGoals: Goal[] = [
  */
 function mockStreamWithImmediateDone() {
   vi.mocked(api.sendMessageStream).mockImplementation(
-    (_req, _onToken, onDone) => {
+    async (_req, _onToken, onDone) => {
       const coachMsg: ChatMessage = mockSendResponse.coach_message
       // Call onDone synchronously to simulate a completed stream
       setTimeout(() => onDone(coachMsg), 0)
