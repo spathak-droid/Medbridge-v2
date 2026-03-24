@@ -1,17 +1,26 @@
 """Firebase token verification middleware and dependencies for HIPAA-compliant auth."""
 
+import json
 import logging
 import os
+import time
 from dataclasses import dataclass
 from typing import Optional
 
+import httpx
 from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 logger = logging.getLogger(__name__)
 
-_firebase_initialized = False
 _security = HTTPBearer(auto_error=False)
+
+# Cache for Google's public keys
+_google_certs: dict = {}
+_google_certs_expiry: float = 0
+
+FIREBASE_PROJECT_ID = os.getenv("FIREBASE_PROJECT_ID", "")
+GOOGLE_CERTS_URL = "https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com"
 
 
 def _is_dev_mode() -> bool:
@@ -23,32 +32,73 @@ def _is_dev_mode() -> bool:
     return os.getenv("APP_ENV", "production") == "development"
 
 
-def _ensure_firebase():
-    """Lazy-init Firebase Admin SDK."""
-    global _firebase_initialized
-    if _firebase_initialized:
-        return
-    import firebase_admin
-    from firebase_admin import credentials
+def _get_google_certs() -> dict:
+    """Fetch and cache Google's public certificates for Firebase token verification."""
+    global _google_certs, _google_certs_expiry
 
-    cred_path = os.getenv("FIREBASE_SERVICE_ACCOUNT_PATH")
-    project_id = os.getenv("FIREBASE_PROJECT_ID") or os.getenv("GOOGLE_CLOUD_PROJECT")
+    if _google_certs and time.time() < _google_certs_expiry:
+        return _google_certs
 
-    if cred_path and os.path.exists(cred_path):
-        cred = credentials.Certificate(cred_path)
-        firebase_admin.initialize_app(cred)
-    elif project_id:
-        # Initialize with just project ID — can verify tokens using Google's public keys
-        firebase_admin.initialize_app(options={"projectId": project_id})
-        logger.info("Firebase initialized with project ID: %s", project_id)
-    else:
-        # In dev mode without credentials, skip Firebase init
-        if _is_dev_mode():
-            logger.warning("Firebase credentials not found — running in dev auth-bypass mode")
-            return
-        # Falls back to GOOGLE_APPLICATION_CREDENTIALS or default credentials
-        firebase_admin.initialize_app()
-    _firebase_initialized = True
+    resp = httpx.get(GOOGLE_CERTS_URL, timeout=10)
+    resp.raise_for_status()
+    _google_certs = resp.json()
+
+    # Parse cache-control max-age
+    cache_control = resp.headers.get("cache-control", "")
+    max_age = 3600  # default 1 hour
+    for part in cache_control.split(","):
+        part = part.strip()
+        if part.startswith("max-age="):
+            try:
+                max_age = int(part.split("=")[1])
+            except ValueError:
+                pass
+    _google_certs_expiry = time.time() + max_age
+
+    return _google_certs
+
+
+def _verify_firebase_token(token: str) -> dict:
+    """Verify a Firebase ID token using Google's public keys.
+
+    This doesn't require a service account — just the project ID and Google's
+    public certificates (fetched over HTTPS).
+    """
+    import jwt  # PyJWT
+    from cryptography.x509 import load_pem_x509_certificate
+
+    # Decode header to get key ID
+    unverified_header = jwt.get_unverified_header(token)
+    kid = unverified_header.get("kid")
+    if not kid:
+        raise ValueError("Token has no kid header")
+
+    # Get the matching public key
+    certs = _get_google_certs()
+    cert_pem = certs.get(kid)
+    if not cert_pem:
+        # Refresh certs in case they rotated
+        global _google_certs_expiry
+        _google_certs_expiry = 0
+        certs = _get_google_certs()
+        cert_pem = certs.get(kid)
+        if not cert_pem:
+            raise ValueError(f"No matching certificate for kid: {kid}")
+
+    # Extract public key from x509 certificate
+    cert = load_pem_x509_certificate(cert_pem.encode())
+    public_key = cert.public_key()
+
+    # Verify and decode the token
+    decoded = jwt.decode(
+        token,
+        public_key,
+        algorithms=["RS256"],
+        audience=FIREBASE_PROJECT_ID,
+        issuer=f"https://securetoken.google.com/{FIREBASE_PROJECT_ID}",
+    )
+
+    return decoded
 
 
 @dataclass
@@ -60,11 +110,7 @@ class AuthenticatedUser:
 
 
 def _parse_demo_token(token: str) -> AuthenticatedUser | None:
-    """Parse X-Demo-User header for dev/demo mode only.
-
-    Format: "uid:role" e.g. "demo-patient:patient" or "demo-clinician:clinician"
-    Only works when APP_ENV=development.
-    """
+    """Parse X-Demo-User header for dev/demo mode only."""
     if not _is_dev_mode():
         return None
     parts = token.split(":")
@@ -77,12 +123,7 @@ async def get_current_user(
     request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(_security),
 ) -> AuthenticatedUser:
-    """Verify Firebase ID token and return the authenticated user.
-
-    In development mode, also accepts X-Demo-User header for demo login.
-    Raises HTTP 401 if token is missing or invalid.
-    Raises HTTP 403 if token is expired.
-    """
+    """Verify Firebase ID token and return the authenticated user."""
     # Dev/demo mode: check X-Demo-User header (NEVER active in production)
     demo_header = request.headers.get("x-demo-user")
     if demo_header:
@@ -91,7 +132,6 @@ async def get_current_user(
         else:
             demo_user = _parse_demo_token(demo_header)
             if demo_user:
-                logger.debug("Dev auth bypass for demo user: %s", demo_user.uid)
                 return demo_user
 
     if credentials is None:
@@ -99,33 +139,26 @@ async def get_current_user(
 
     token = credentials.credentials
 
-    # In dev mode without any Firebase config, reject — require X-Demo-User header
-    has_firebase = (
-        os.getenv("FIREBASE_SERVICE_ACCOUNT_PATH")
-        or os.getenv("FIREBASE_PROJECT_ID")
-        or os.getenv("GOOGLE_CLOUD_PROJECT")
-    )
-    if _is_dev_mode() and not has_firebase:
+    # In dev mode without Firebase project ID, reject
+    if _is_dev_mode() and not FIREBASE_PROJECT_ID:
         raise HTTPException(
             status_code=401,
             detail="Firebase not configured. Use X-Demo-User header in dev mode.",
         )
 
-    try:
-        _ensure_firebase()
-        from firebase_admin import auth
+    if not FIREBASE_PROJECT_ID:
+        raise HTTPException(status_code=500, detail="FIREBASE_PROJECT_ID not set")
 
-        decoded = auth.verify_id_token(token, check_revoked=False)
+    try:
+        decoded = _verify_firebase_token(token)
     except Exception as exc:
         error_msg = str(exc)
         logger.warning("Firebase token verification failed: %s", error_msg)
         if "expired" in error_msg.lower():
             raise HTTPException(status_code=403, detail="Token expired — re-authenticate")
-        if "revoked" in error_msg.lower():
-            raise HTTPException(status_code=401, detail="Token revoked — re-authenticate")
-        raise HTTPException(status_code=401, detail=f"Invalid authentication token: {error_msg[:100]}")
+        raise HTTPException(status_code=401, detail="Invalid authentication token")
 
-    uid = decoded.get("uid", "")
+    uid = decoded.get("user_id") or decoded.get("sub", "")
     email = decoded.get("email")
     # Role from custom claims; default to "patient"
     role = decoded.get("role", "patient")
@@ -136,7 +169,6 @@ async def get_current_user(
 async def require_clinician(
     user: AuthenticatedUser = Depends(get_current_user),
 ) -> AuthenticatedUser:
-    """Dependency that restricts access to clinicians only."""
     if user.role != "clinician":
         raise HTTPException(status_code=403, detail="Clinician access required")
     return user
@@ -145,7 +177,6 @@ async def require_clinician(
 async def require_patient(
     user: AuthenticatedUser = Depends(get_current_user),
 ) -> AuthenticatedUser:
-    """Dependency that restricts access to patients only."""
     if user.role != "patient":
         raise HTTPException(status_code=403, detail="Patient access required")
     return user
