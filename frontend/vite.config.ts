@@ -5,7 +5,7 @@ import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-  envDir: '..',
+  envDir: process.env.RAILWAY_ENVIRONMENT ? '.' : '..',
   envPrefix: ['VITE_', 'FIREBASE_', 'TEST_'],
   server: {
     port: 3000,
