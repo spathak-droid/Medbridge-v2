@@ -36,6 +36,25 @@ SCHEDULER_INTERVAL = 60
 UNANSWERED_THRESHOLD = timedelta(hours=24)
 
 
+async def _execute_reminder(session, event: "ScheduleEvent") -> "ScheduleEvent":
+    """Execute a REMINDER event — just mark it SENT with its existing message."""
+    from app.models.enums import PatientPhase
+
+    patient_result = await session.execute(
+        select(Patient).where(Patient.id == event.patient_id)
+    )
+    patient = patient_result.scalar_one_or_none()
+    if patient and patient.phase == PatientPhase.DORMANT:
+        event.status = ScheduleStatus.SKIPPED
+    else:
+        event.status = ScheduleStatus.SENT
+        event.executed_at = datetime.now(timezone.utc)
+    session.add(event)
+    await session.commit()
+    await session.refresh(event)
+    return event
+
+
 async def _execute_due_events() -> int:
     """Find and execute all due scheduled events. Returns count executed."""
     executed = 0
@@ -43,13 +62,14 @@ async def _execute_due_events() -> int:
         events = await get_due_events(session)
         for event in events:
             try:
-                # Dispatch WEEKLY_DIGEST events to the digest service
                 if event.event_type == EventType.WEEKLY_DIGEST:
                     result = await execute_weekly_digest(session, event.id)
+                elif event.event_type == EventType.REMINDER:
+                    result = await _execute_reminder(session, event)
                 else:
                     result = await execute_checkin(session, event.id)
                 if result.status == ScheduleStatus.SENT and result.message:
-                    # Persist the check-in as a coach message in the conversation
+                    # Persist as a coach message in the conversation
                     await _persist_checkin_message(session, event.patient_id, result.message)
                     # Send email notification
                     await _send_event_email(session, event.patient_id, event.event_type, result.message)
