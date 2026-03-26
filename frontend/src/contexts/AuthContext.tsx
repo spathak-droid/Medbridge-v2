@@ -8,6 +8,7 @@ import {
 } from 'firebase/auth'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { auth, db } from '../lib/firebase'
+import { registerRole } from '../lib/api'
 
 export type UserRole = 'patient' | 'clinician'
 
@@ -92,6 +93,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             role,
             name: name || fbUser.email || '',
           })
+          // Ensure backend knows this user's role (idempotent)
+          registerRole(role).catch(() => {})
           setLoading(false)
           return
         }
@@ -108,6 +111,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const firestoreName = data.name || fbUser.email || ''
             setStoredRole(fbUser.uid, firestoreRole)
             localStorage.setItem(`medbridge_name_${fbUser.uid}`, firestoreName)
+            // Ensure backend knows this user's role
+            await registerRole(firestoreRole).catch(() => {})
             setUser({ uid: fbUser.uid, email: fbUser.email, role: firestoreRole, name: firestoreName })
           } else {
             // No role data anywhere — sign out
@@ -168,7 +173,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // Role verified — set user state
+      // Role verified — register in backend DB before setting user state
+      // (must complete before dashboard API calls that check role)
+      await registerRole(role).catch(() => {})
+
       const name = getStoredName(cred.user.uid) || cred.user.email || ''
       setStoredRole(cred.user.uid, role)
       setUser({ uid: cred.user.uid, email: cred.user.email, role, name })
@@ -188,6 +196,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Persist role to localStorage immediately (source of truth)
       setStoredRole(cred.user.uid, role)
       localStorage.setItem(`medbridge_name_${cred.user.uid}`, name)
+
+      // Register role in backend DB before setting user state
+      await registerRole(role).catch(() => {})
 
       // Set user state
       setUser({ uid: cred.user.uid, email, role, name })

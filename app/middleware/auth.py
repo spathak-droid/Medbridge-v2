@@ -1,6 +1,5 @@
 """Firebase token verification middleware and dependencies for HIPAA-compliant auth."""
 
-import json
 import logging
 import os
 import time
@@ -10,6 +9,10 @@ from typing import Optional
 import httpx
 from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.database import get_session
 
 logger = logging.getLogger(__name__)
 
@@ -122,8 +125,15 @@ def _parse_demo_token(token: str) -> AuthenticatedUser | None:
 async def get_current_user(
     request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(_security),
+    session: AsyncSession = Depends(get_session),
 ) -> AuthenticatedUser:
-    """Verify Firebase ID token and return the authenticated user."""
+    """Verify Firebase ID token and return the authenticated user.
+
+    Role resolution order:
+    1. Firebase custom claims (if set via Admin SDK)
+    2. Backend ``app_users`` table (populated at signup/signin)
+    3. Default: "patient"
+    """
     # Dev/demo mode: check X-Demo-User header (NEVER active in production)
     demo_header = request.headers.get("x-demo-user")
     if demo_header:
@@ -160,8 +170,17 @@ async def get_current_user(
 
     uid = decoded.get("user_id") or decoded.get("sub", "")
     email = decoded.get("email")
-    # Role from custom claims; default to "patient"
-    role = decoded.get("role", "patient")
+
+    # Role: prefer custom claims from token, then fall back to DB lookup
+    role = decoded.get("role")
+    if not role:
+        from app.models.app_user import AppUser
+
+        result = await session.execute(
+            select(AppUser.role).where(AppUser.firebase_uid == uid)
+        )
+        db_role = result.scalar_one_or_none()
+        role = db_role or "patient"
 
     return AuthenticatedUser(uid=uid, email=email, role=role)
 

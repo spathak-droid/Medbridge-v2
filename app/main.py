@@ -14,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.alerts import router as alerts_router
 from app.api.analytics import router as analytics_router
+from app.api.auth import router as auth_router
 from app.api.coach import router as coach_router
 from app.api.goals import router as goals_router
 from app.api.health import router as health_router
@@ -80,6 +81,7 @@ def create_app() -> FastAPI:
         allow_headers=["Authorization", "Content-Type"],
     )
 
+    application.include_router(auth_router)
     application.include_router(health_router)
     application.include_router(risk_router)
     application.include_router(patients_router)

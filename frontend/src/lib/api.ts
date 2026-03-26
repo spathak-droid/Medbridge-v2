@@ -316,6 +316,14 @@ export function updateConsent(patientId: number, consentGiven: boolean): Promise
   })
 }
 
+// Auth — register role in backend DB (Firebase custom claims not available)
+export function registerRole(role: 'patient' | 'clinician'): Promise<{ uid: string; role: string }> {
+  return apiFetch<{ uid: string; role: string }>('/api/auth/register', {
+    method: 'POST',
+    body: JSON.stringify({ role }),
+  })
+}
+
 export function getAlerts(): Promise<AlertItem[]> {
   return apiFetch<AlertItem[]>('/api/alerts')
 }

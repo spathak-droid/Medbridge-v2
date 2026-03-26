@@ -1,6 +1,7 @@
 """Domain models for MedBridge coaching platform."""
 
 from app.models.alert import Alert
+from app.models.app_user import AppUser
 from app.models.audit_log import AuditLog
 from app.models.conversation import Conversation
 from app.models.direct_message import DirectMessage
@@ -24,6 +25,7 @@ from app.models.schedule_event import ScheduleEvent
 __all__ = [
     "Alert",
     "AlertStatus",
+    "AppUser",
     "AuditLog",
     "AlertUrgency",
     "Conversation",
