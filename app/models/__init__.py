@@ -2,6 +2,7 @@
 
 from app.models.alert import Alert
 from app.models.app_user import AppUser
+from app.models.clinical_note import ClinicalNote
 from app.models.audit_log import AuditLog
 from app.models.conversation import Conversation
 from app.models.direct_message import DirectMessage
@@ -26,6 +27,7 @@ __all__ = [
     "Alert",
     "AlertStatus",
     "AppUser",
+    "ClinicalNote",
     "AuditLog",
     "AlertUrgency",
     "Conversation",
