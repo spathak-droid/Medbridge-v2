@@ -65,9 +65,95 @@ async def _get_conversation_messages(
     )
     messages = result.scalars().all()
     return [
-        {"role": m.role.value.lower(), "content": m.content}
+        {
+            "role": m.role.value.lower(),
+            "content": m.content,
+            "has_tool_calls": bool(m.tool_calls),
+        }
         for m in messages
     ]
+
+
+# Constants for context management
+CONVERSATION_TOKEN_BUDGET = 3000
+MIN_RECENT_MESSAGES = 4
+
+
+def _estimate_tokens(text: str) -> int:
+    """Estimate token count using ~4 chars per token heuristic."""
+    return len(text) // 4
+
+
+def _truncate_conversation_messages(
+    messages: list[dict[str, Any]],
+    *,
+    token_budget: int = CONVERSATION_TOKEN_BUDGET,
+) -> list[dict[str, Any]]:
+    """Truncate conversation messages to fit within a token budget.
+
+    Pinning strategy:
+    - Always keep the first message (establishes context)
+    - Always keep messages with tool calls (goal setting, reminders)
+    - Always keep the last MIN_RECENT_MESSAGES messages
+    - Fill remaining budget from most-recent-first among unpinned
+    - Prepend a system note if any messages were dropped
+
+    Pure function — no side effects.
+    """
+    if not messages:
+        return messages
+
+    total_tokens = sum(_estimate_tokens(m.get("content", "")) for m in messages)
+    if total_tokens <= token_budget:
+        return messages
+
+    n = len(messages)
+    pinned_indices: set[int] = set()
+
+    # Pin first message
+    pinned_indices.add(0)
+
+    # Pin messages with tool calls
+    for i, m in enumerate(messages):
+        if m.get("has_tool_calls"):
+            pinned_indices.add(i)
+
+    # Pin last MIN_RECENT_MESSAGES
+    for i in range(max(0, n - MIN_RECENT_MESSAGES), n):
+        pinned_indices.add(i)
+
+    # Calculate budget used by pinned messages
+    pinned_tokens = sum(
+        _estimate_tokens(messages[i].get("content", ""))
+        for i in pinned_indices
+    )
+
+    # Fill remaining budget from most-recent unpinned messages
+    remaining_budget = token_budget - pinned_tokens
+    unpinned = [i for i in range(n) if i not in pinned_indices]
+    unpinned.reverse()  # most recent first
+
+    included_indices: set[int] = set(pinned_indices)
+    for i in unpinned:
+        msg_tokens = _estimate_tokens(messages[i].get("content", ""))
+        if remaining_budget >= msg_tokens:
+            included_indices.add(i)
+            remaining_budget -= msg_tokens
+
+    # Build result in original order
+    result = [messages[i] for i in sorted(included_indices)]
+
+    # Prepend system note if messages were dropped
+    if len(result) < n:
+        result.insert(0, {
+            "role": "system",
+            "content": (
+                "Earlier conversation history has been trimmed to preserve context. "
+                "Key moments (goal setting, reminders) are preserved above."
+            ),
+        })
+
+    return result
 
 
 async def _find_latest_unconfirmed_goal(
@@ -130,6 +216,7 @@ async def run_coach_turn(
 
     # Get existing messages
     messages = await _get_conversation_messages(session, conversation_id)
+    messages = _truncate_conversation_messages(messages)
 
     # Add the new patient message if provided
     if user_message_content:
@@ -252,6 +339,7 @@ async def run_coach_turn_stream(
 
     # Get existing messages
     messages = await _get_conversation_messages(session, conversation_id)
+    messages = _truncate_conversation_messages(messages)
 
     # Add the new patient message if provided
     if user_message_content:
