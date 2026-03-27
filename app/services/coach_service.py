@@ -31,7 +31,7 @@ from app.models.message import Message
 from app.models.patient import Patient
 from app.services.llm_provider import generate_llm_response, generate_llm_response_stream
 from app.services.safety_classifier import SafetyClassifierService
-from app.services.safety_pipeline import CRISIS_SUPPORT_MESSAGE, SAFE_FALLBACK_MESSAGES
+from app.services.safety_pipeline import AUGMENTED_RETRY_INSTRUCTION, CRISIS_SUPPORT_MESSAGE, SAFE_FALLBACK_MESSAGES
 from app.tools.coach_tools import make_coach_tools
 
 logger = logging.getLogger(__name__)
@@ -222,8 +222,7 @@ def _build_system_prompt_for_phase(phase: PatientPhase, state: dict[str, Any]) -
     elif phase == PatientPhase.RE_ENGAGING:
         return build_re_engaging_system_prompt(state)
     else:
-        # Default to active prompt for unknown phases
-        return build_active_system_prompt(state)
+        raise ValueError(f"No system prompt for phase: {phase.value}")
 
 
 async def run_coach_turn_stream(
@@ -242,6 +241,14 @@ async def run_coach_turn_stream(
     """
     patient = await _get_patient(session, patient_id)
     goal_text = await _get_confirmed_goal(session, patient_id)
+
+    # Reject non-conversable phases explicitly
+    if patient.phase == PatientPhase.PENDING:
+        yield f"event: error\ndata: {json.dumps({'detail': 'Patient has not completed onboarding yet'})}\n\n"
+        return
+    if patient.phase == PatientPhase.DORMANT:
+        yield f"event: error\ndata: {json.dumps({'detail': 'Patient is dormant. Waiting for re-engagement.'})}\n\n"
+        return
 
     # Get existing messages
     messages = await _get_conversation_messages(session, conversation_id)
@@ -320,17 +327,38 @@ async def run_coach_turn_stream(
         yield f"event: done\ndata: {json.dumps(done_data)}\n\n"
 
     elif result.classification == SafetyClassification.CLINICAL_CONTENT:
-        # Clinical content was streamed — override with safe fallback
+        # Clinical content detected — retry with augmented prompt (non-streaming)
         logger.info(
-            "Streaming: clinical content detected, overriding (patient_id=%s, patterns=%s)",
+            "Streaming: clinical content detected, retrying (patient_id=%s, patterns=%s)",
             patient_id, result.matched_patterns,
         )
-        fallback = random.choice(SAFE_FALLBACK_MESSAGES)
+        retry_prompt = system_prompt + "\n\n" + AUGMENTED_RETRY_INSTRUCTION
+        try:
+            retry_text = await generate_llm_response(
+                messages=messages,
+                system_prompt=retry_prompt,
+                patient_id=patient_id,
+            )
+            retry_result = classifier.classify(retry_text)
+        except Exception:
+            logger.exception("Streaming safety retry failed")
+            retry_result = None
+            retry_text = None
+
+        if retry_result and retry_result.classification == SafetyClassification.SAFE:
+            # Retry produced safe content — use it as override
+            content = retry_text
+            safety_status = SafetyStatus.PASSED
+        else:
+            # Retry also clinical or failed — use safe fallback
+            content = random.choice(SAFE_FALLBACK_MESSAGES)
+            safety_status = SafetyStatus.FALLBACK
+
         coach_msg = Message(
             conversation_id=conversation_id,
             role=MessageRole.COACH,
-            content=fallback,
-            safety_status=SafetyStatus.FALLBACK,
+            content=content,
+            safety_status=safety_status,
             tool_calls=tool_call_log if tool_call_log else None,
             created_at=now,
         )
