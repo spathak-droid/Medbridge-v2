@@ -107,10 +107,10 @@ async def test_safe_response_yields_done_event(
     mock_stream.return_value = fake_stream()
 
     classifier_instance = MagicMock()
-    classifier_instance.classify.return_value = MagicMock(
+    classifier_instance.classify = AsyncMock(return_value=MagicMock(
         classification=SafetyClassification.SAFE,
         matched_patterns=[],
-    )
+    ))
     mock_classifier_cls.return_value = classifier_instance
 
     events = await _collect_events(
@@ -165,7 +165,7 @@ async def test_clinical_content_triggers_retry(
 
     # Classifier: first call returns CLINICAL, second returns SAFE
     classifier_instance = MagicMock()
-    classifier_instance.classify.side_effect = [
+    classifier_instance.classify = AsyncMock(side_effect=[
         MagicMock(
             classification=SafetyClassification.CLINICAL_CONTENT,
             matched_patterns=["ibuprofen"],
@@ -174,7 +174,7 @@ async def test_clinical_content_triggers_retry(
             classification=SafetyClassification.SAFE,
             matched_patterns=[],
         ),
-    ]
+    ])
     mock_classifier_cls.return_value = classifier_instance
 
     # Retry LLM call returns safe content
@@ -231,7 +231,7 @@ async def test_clinical_retry_fails_yields_fallback(
 
     # Classifier: both calls return CLINICAL
     classifier_instance = MagicMock()
-    classifier_instance.classify.side_effect = [
+    classifier_instance.classify = AsyncMock(side_effect=[
         MagicMock(
             classification=SafetyClassification.CLINICAL_CONTENT,
             matched_patterns=["diagnosis"],
@@ -240,7 +240,7 @@ async def test_clinical_retry_fails_yields_fallback(
             classification=SafetyClassification.CLINICAL_CONTENT,
             matched_patterns=["specialist"],
         ),
-    ]
+    ])
     mock_classifier_cls.return_value = classifier_instance
 
     mock_llm.return_value = "Still talking about your diagnosis"
@@ -296,10 +296,10 @@ async def test_crisis_yields_safety_override_with_crisis_message(
     mock_stream.return_value = fake_stream()
 
     classifier_instance = MagicMock()
-    classifier_instance.classify.return_value = MagicMock(
+    classifier_instance.classify = AsyncMock(return_value=MagicMock(
         classification=SafetyClassification.CRISIS,
         matched_patterns=["hopeless"],
-    )
+    ))
     mock_classifier_cls.return_value = classifier_instance
 
     events = await _collect_events(

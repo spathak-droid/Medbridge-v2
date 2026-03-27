@@ -387,8 +387,8 @@ async def run_coach_turn_stream(
     metadata = _build_goal_metadata(tool_call_log, latest_goal)
 
     # Run safety classification on the full accumulated text
-    classifier = SafetyClassifierService()
-    result = classifier.classify(full_text)
+    classifier = SafetyClassifierService(enable_llm_fallback=True)
+    result = await classifier.classify(full_text)
     now = datetime.now(timezone.utc)
 
     if result.classification == SafetyClassification.SAFE:
@@ -427,7 +427,7 @@ async def run_coach_turn_stream(
                 system_prompt=retry_prompt,
                 patient_id=patient_id,
             )
-            retry_result = classifier.classify(retry_text)
+            retry_result = await classifier.classify(retry_text)
         except Exception:
             logger.exception("Streaming safety retry failed")
             retry_result = None
