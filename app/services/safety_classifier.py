@@ -101,6 +101,17 @@ CLINICAL_PATTERNS: list[re.Pattern[str]] = [
 ]
 
 
+SAFETY_CLASSIFICATION_PROMPT = (
+    "You are a safety classifier for a rehabilitation coaching AI. "
+    "Classify the following AI coach response as one of: SAFE, CLINICAL_CONTENT, CRISIS.\n\n"
+    "CRISIS: contains references to self-harm, suicidal ideation, or immediate danger.\n"
+    "CLINICAL_CONTENT: contains specific medical advice, diagnoses, medication "
+    "recommendations, dosage information, or prognosis statements.\n"
+    "SAFE: appropriate motivational coaching content about exercises, goals, and emotional support.\n\n"
+    "Respond with ONLY the classification label on the first line, then a brief reason on the second line."
+)
+
+
 @dataclass
 class ClassificationResult:
     """Result of safety classification, carrying audit metadata.
@@ -133,7 +144,7 @@ class SafetyClassifierService:
     def __init__(self, *, enable_llm_fallback: bool = False) -> None:
         self._enable_llm_fallback = enable_llm_fallback
 
-    def classify(self, message: str) -> ClassificationResult:
+    async def classify(self, message: str) -> ClassificationResult:
         """Classify a message for safety concerns.
 
         Priority order: CRISIS > CLINICAL_CONTENT > SAFE.
@@ -179,9 +190,8 @@ class SafetyClassifierService:
             return result
 
         # Layer 2: LLM fallback for ambiguous cases (if enabled)
-        # This would add latency — kept optional/configurable per ticket notes
         if self._enable_llm_fallback:
-            return self._llm_classify(message)
+            return await self._llm_classify(message)
 
         # Default: safe
         result = ClassificationResult(
@@ -209,18 +219,50 @@ class SafetyClassifierService:
                 matches.append(pattern.pattern)
         return matches
 
-    def _llm_classify(self, message: str) -> ClassificationResult:
+    async def _llm_classify(self, message: str) -> ClassificationResult:
         """LLM fallback classifier for ambiguous messages.
 
-        Placeholder — the actual LLM call would use the project's LLM provider
-        to classify messages that don't match keyword patterns but may still
-        contain clinical content or crisis signals.
+        Calls the LLM to classify messages that passed regex but may still
+        contain clinical content or crisis signals via paraphrasing.
         """
-        # TODO: Implement LLM fallback call (adds latency, use sparingly)
-        logger.info("LLM fallback invoked for message_preview=%.80s", message)
+        from app.services.llm_provider import generate_llm_response
+
+        logger.info("LLM fallback invoked for message_length=%d", len(message))
+        try:
+            response = await generate_llm_response(
+                messages=[{"role": "user", "content": message}],
+                system_prompt=SAFETY_CLASSIFICATION_PROMPT,
+                patient_id=0,  # classifier context, not patient-specific
+            )
+            return self._parse_llm_classification(response, message)
+        except Exception:
+            logger.exception("LLM safety classification failed, defaulting to SAFE")
+            return ClassificationResult(
+                classification=SafetyClassification.SAFE,
+                matched_patterns=[],
+                layer="llm",
+                message=message,
+            )
+
+    @staticmethod
+    def _parse_llm_classification(response: str, original_message: str) -> ClassificationResult:
+        """Parse the LLM classification response into a ClassificationResult."""
+        lines = response.strip().split("\n", 1)
+        label = lines[0].strip().upper()
+        reason = lines[1].strip() if len(lines) > 1 else ""
+
+        classification_map = {
+            "SAFE": SafetyClassification.SAFE,
+            "CLINICAL_CONTENT": SafetyClassification.CLINICAL_CONTENT,
+            "CRISIS": SafetyClassification.CRISIS,
+        }
+
+        classification = classification_map.get(label, SafetyClassification.SAFE)
+        matched_patterns = [f"llm: {reason}"] if reason else []
+
         return ClassificationResult(
-            classification=SafetyClassification.SAFE,
-            matched_patterns=[],
+            classification=classification,
+            matched_patterns=matched_patterns,
             layer="llm",
-            message=message,
+            message=original_message,
         )

@@ -20,6 +20,7 @@ from app.models.goal import Goal
 from app.models.patient import Patient
 from app.models.schedule_event import ScheduleEvent
 from app.services.weekly_digest import (
+    _generate_digest_message,
     build_digest_prompt,
     execute_weekly_digest,
     gather_weekly_data,
@@ -339,3 +340,45 @@ class TestScheduleFirstDigest:
         )
         events = result.scalars().all()
         assert len(events) == 1
+
+
+# ---------------------------------------------------------------------------
+# LLM integration: prompt and patient_id reach the LLM call
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+@patch("app.services.weekly_digest.generate_llm_response", new_callable=AsyncMock)
+async def test_digest_calls_llm_with_prompt(mock_llm, db_session):
+    """Digest generation passes build_digest_prompt output to the LLM."""
+    mock_llm.return_value = "This week you completed 5 of 7 exercise days! Your 3-day streak is building momentum."
+
+    patient = await _create_patient(db_session)
+    goal = await _create_goal(db_session, patient.id)
+    event = await _create_digest_event(db_session, patient.id)
+
+    result = await execute_weekly_digest(db_session, event.id)
+
+    assert mock_llm.called
+    call_kwargs = mock_llm.call_args.kwargs
+    # The user message content should contain the digest prompt data
+    user_content = call_kwargs["messages"][0]["content"]
+    assert "goal" in user_content.lower() or "adherence" in user_content.lower()
+    assert result.status == ScheduleStatus.SENT
+    assert result.message == mock_llm.return_value
+
+
+@pytest.mark.asyncio
+@patch("app.services.weekly_digest.generate_llm_response", new_callable=AsyncMock)
+async def test_digest_augmented_prompt_adds_retry_instruction(mock_llm, db_session):
+    """When augmented_prompt=True, the system prompt includes the retry instruction."""
+    mock_llm.return_value = "Keep up with your exercises this week!"
+
+    result = await _generate_digest_message(
+        "Patient data prompt here",
+        patient_id=1,
+        augmented_prompt=True,
+    )
+
+    call_kwargs = mock_llm.call_args.kwargs
+    assert "Rephrase focusing only on exercise" in call_kwargs["system_prompt"]

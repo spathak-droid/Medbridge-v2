@@ -31,7 +31,7 @@ from app.models.message import Message
 from app.models.patient import Patient
 from app.services.llm_provider import generate_llm_response, generate_llm_response_stream
 from app.services.safety_classifier import SafetyClassifierService
-from app.services.safety_pipeline import CRISIS_SUPPORT_MESSAGE, SAFE_FALLBACK_MESSAGES
+from app.services.safety_pipeline import AUGMENTED_RETRY_INSTRUCTION, CRISIS_SUPPORT_MESSAGE, SAFE_FALLBACK_MESSAGES
 from app.tools.coach_tools import make_coach_tools
 
 logger = logging.getLogger(__name__)
@@ -65,9 +65,95 @@ async def _get_conversation_messages(
     )
     messages = result.scalars().all()
     return [
-        {"role": m.role.value.lower(), "content": m.content}
+        {
+            "role": m.role.value.lower(),
+            "content": m.content,
+            "has_tool_calls": bool(m.tool_calls),
+        }
         for m in messages
     ]
+
+
+# Constants for context management
+CONVERSATION_TOKEN_BUDGET = 3000
+MIN_RECENT_MESSAGES = 4
+
+
+def _estimate_tokens(text: str) -> int:
+    """Estimate token count using ~4 chars per token heuristic."""
+    return len(text) // 4
+
+
+def _truncate_conversation_messages(
+    messages: list[dict[str, Any]],
+    *,
+    token_budget: int = CONVERSATION_TOKEN_BUDGET,
+) -> list[dict[str, Any]]:
+    """Truncate conversation messages to fit within a token budget.
+
+    Pinning strategy:
+    - Always keep the first message (establishes context)
+    - Always keep messages with tool calls (goal setting, reminders)
+    - Always keep the last MIN_RECENT_MESSAGES messages
+    - Fill remaining budget from most-recent-first among unpinned
+    - Prepend a system note if any messages were dropped
+
+    Pure function — no side effects.
+    """
+    if not messages:
+        return messages
+
+    total_tokens = sum(_estimate_tokens(m.get("content", "")) for m in messages)
+    if total_tokens <= token_budget:
+        return messages
+
+    n = len(messages)
+    pinned_indices: set[int] = set()
+
+    # Pin first message
+    pinned_indices.add(0)
+
+    # Pin messages with tool calls
+    for i, m in enumerate(messages):
+        if m.get("has_tool_calls"):
+            pinned_indices.add(i)
+
+    # Pin last MIN_RECENT_MESSAGES
+    for i in range(max(0, n - MIN_RECENT_MESSAGES), n):
+        pinned_indices.add(i)
+
+    # Calculate budget used by pinned messages
+    pinned_tokens = sum(
+        _estimate_tokens(messages[i].get("content", ""))
+        for i in pinned_indices
+    )
+
+    # Fill remaining budget from most-recent unpinned messages
+    remaining_budget = token_budget - pinned_tokens
+    unpinned = [i for i in range(n) if i not in pinned_indices]
+    unpinned.reverse()  # most recent first
+
+    included_indices: set[int] = set(pinned_indices)
+    for i in unpinned:
+        msg_tokens = _estimate_tokens(messages[i].get("content", ""))
+        if remaining_budget >= msg_tokens:
+            included_indices.add(i)
+            remaining_budget -= msg_tokens
+
+    # Build result in original order
+    result = [messages[i] for i in sorted(included_indices)]
+
+    # Prepend system note if messages were dropped
+    if len(result) < n:
+        result.insert(0, {
+            "role": "system",
+            "content": (
+                "Earlier conversation history has been trimmed to preserve context. "
+                "Key moments (goal setting, reminders) are preserved above."
+            ),
+        })
+
+    return result
 
 
 async def _find_latest_unconfirmed_goal(
@@ -130,6 +216,7 @@ async def run_coach_turn(
 
     # Get existing messages
     messages = await _get_conversation_messages(session, conversation_id)
+    messages = _truncate_conversation_messages(messages)
 
     # Add the new patient message if provided
     if user_message_content:
@@ -222,8 +309,7 @@ def _build_system_prompt_for_phase(phase: PatientPhase, state: dict[str, Any]) -
     elif phase == PatientPhase.RE_ENGAGING:
         return build_re_engaging_system_prompt(state)
     else:
-        # Default to active prompt for unknown phases
-        return build_active_system_prompt(state)
+        raise ValueError(f"No system prompt for phase: {phase.value}")
 
 
 async def run_coach_turn_stream(
@@ -243,8 +329,17 @@ async def run_coach_turn_stream(
     patient = await _get_patient(session, patient_id)
     goal_text = await _get_confirmed_goal(session, patient_id)
 
+    # Reject non-conversable phases explicitly
+    if patient.phase == PatientPhase.PENDING:
+        yield f"event: error\ndata: {json.dumps({'detail': 'Patient has not completed onboarding yet'})}\n\n"
+        return
+    if patient.phase == PatientPhase.DORMANT:
+        yield f"event: error\ndata: {json.dumps({'detail': 'Patient is dormant. Waiting for re-engagement.'})}\n\n"
+        return
+
     # Get existing messages
     messages = await _get_conversation_messages(session, conversation_id)
+    messages = _truncate_conversation_messages(messages)
 
     # Add the new patient message if provided
     if user_message_content:
@@ -292,8 +387,8 @@ async def run_coach_turn_stream(
     metadata = _build_goal_metadata(tool_call_log, latest_goal)
 
     # Run safety classification on the full accumulated text
-    classifier = SafetyClassifierService()
-    result = classifier.classify(full_text)
+    classifier = SafetyClassifierService(enable_llm_fallback=True)
+    result = await classifier.classify(full_text)
     now = datetime.now(timezone.utc)
 
     if result.classification == SafetyClassification.SAFE:
@@ -320,17 +415,38 @@ async def run_coach_turn_stream(
         yield f"event: done\ndata: {json.dumps(done_data)}\n\n"
 
     elif result.classification == SafetyClassification.CLINICAL_CONTENT:
-        # Clinical content was streamed — override with safe fallback
+        # Clinical content detected — retry with augmented prompt (non-streaming)
         logger.info(
-            "Streaming: clinical content detected, overriding (patient_id=%s, patterns=%s)",
+            "Streaming: clinical content detected, retrying (patient_id=%s, patterns=%s)",
             patient_id, result.matched_patterns,
         )
-        fallback = random.choice(SAFE_FALLBACK_MESSAGES)
+        retry_prompt = system_prompt + "\n\n" + AUGMENTED_RETRY_INSTRUCTION
+        try:
+            retry_text = await generate_llm_response(
+                messages=messages,
+                system_prompt=retry_prompt,
+                patient_id=patient_id,
+            )
+            retry_result = await classifier.classify(retry_text)
+        except Exception:
+            logger.exception("Streaming safety retry failed")
+            retry_result = None
+            retry_text = None
+
+        if retry_result and retry_result.classification == SafetyClassification.SAFE:
+            # Retry produced safe content — use it as override
+            content = retry_text
+            safety_status = SafetyStatus.PASSED
+        else:
+            # Retry also clinical or failed — use safe fallback
+            content = random.choice(SAFE_FALLBACK_MESSAGES)
+            safety_status = SafetyStatus.FALLBACK
+
         coach_msg = Message(
             conversation_id=conversation_id,
             role=MessageRole.COACH,
-            content=fallback,
-            safety_status=SafetyStatus.FALLBACK,
+            content=content,
+            safety_status=safety_status,
             tool_calls=tool_call_log if tool_call_log else None,
             created_at=now,
         )

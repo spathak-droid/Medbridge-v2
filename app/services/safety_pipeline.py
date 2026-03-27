@@ -99,7 +99,7 @@ async def run_safety_pipeline(
         and whether a crisis alert was sent.
     """
     if classifier is None:
-        classifier = SafetyClassifierService()
+        classifier = SafetyClassifierService(enable_llm_fallback=True)
 
     # Langfuse tracing (best-effort)
     lf_span = None
@@ -116,7 +116,7 @@ async def run_safety_pipeline(
 
     # --- Attempt 1: generate and classify ---
     message = await generate_fn()
-    classification = classifier.classify(message)
+    classification = await classifier.classify(message)
     attempts = 1
 
     try:
@@ -172,7 +172,7 @@ async def run_safety_pipeline(
 
     # --- Attempt 2: retry with augmented prompt ---
     message = await generate_fn(augmented_prompt=True)
-    classification = classifier.classify(message)
+    classification = await classifier.classify(message)
     attempts = 2
 
     try:

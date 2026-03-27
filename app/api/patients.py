@@ -702,7 +702,9 @@ INSIGHTS_SYSTEM_PROMPT = (
     "How actively they engage with the AI coach — conversation frequency, responsiveness (2 sentences).\n\n"
     "## Recommended Actions\n"
     "2-3 specific, actionable bullet points for the clinician.\n\n"
-    "Be concise and clinical. Use the data to support your assessments."
+    "Be concise and clinical. Use the data to support your assessments.\n"
+    "If clinician notes are available, incorporate their observations into your analysis "
+    "and recommended actions."
 )
 
 
@@ -858,6 +860,24 @@ async def _generate_insight(patient_id: int, session: AsyncSession) -> str:
         data_parts.append(f"\nAlerts ({len(alerts)}):")
         for a in alerts:
             data_parts.append(f"  [{a.urgency.value}] {a.reason[:100]}")
+
+    # Clinical notes
+    from app.models.clinical_note import ClinicalNote
+    notes_result = await session.execute(
+        select(ClinicalNote)
+        .where(
+            ClinicalNote.patient_id == patient_id,
+            ClinicalNote.deleted_at.is_(None),
+        )
+        .order_by(ClinicalNote.created_at.desc())
+        .limit(10)
+    )
+    notes = notes_result.scalars().all()
+    if notes:
+        data_parts.append(f"\nClinician Notes ({len(notes)}):")
+        for n in notes:
+            date_str = n.created_at.strftime("%Y-%m-%d") if n.created_at else "unknown"
+            data_parts.append(f"  [{date_str}]: {n.content[:200]}")
 
     patient_data_text = "\n".join(data_parts)
 

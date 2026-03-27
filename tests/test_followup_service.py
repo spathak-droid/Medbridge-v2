@@ -14,6 +14,7 @@ Covers all acceptance criteria:
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, patch
 
+import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -448,3 +449,77 @@ class TestProcessDueEvents:
         due = await get_due_events(session)
         assert len(due) == 1
         assert due[0].event_type == EventType.DAY_2
+
+
+# ---------------------------------------------------------------------------
+# Helpers for LLM integration tests
+# ---------------------------------------------------------------------------
+
+
+async def _create_event(
+    session: AsyncSession,
+    patient_id: int,
+    event_type: EventType,
+) -> ScheduleEvent:
+    event = ScheduleEvent(
+        patient_id=patient_id,
+        event_type=event_type,
+        scheduled_at=datetime.now(timezone.utc) - timedelta(hours=1),
+        status=ScheduleStatus.PENDING,
+    )
+    session.add(event)
+    await session.commit()
+    await session.refresh(event)
+    return event
+
+
+# ---------------------------------------------------------------------------
+# LLM integration: nudge and tone reach the LLM call
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+@patch("app.services.followup_service.generate_llm_response", new_callable=AsyncMock)
+@patch("app.services.followup_service._get_adherence_percentage", new_callable=AsyncMock)
+async def test_checkin_calls_llm_with_tone_and_nudge(
+    mock_adherence, mock_llm, db_session
+):
+    """Check-in generation calls LLM with composed tone + nudge prompt."""
+    mock_adherence.return_value = 90.0  # celebration tone
+    mock_llm.return_value = "Great job on your 5-day streak! Keep pushing toward your goal."
+
+    patient = await _create_patient(db_session)
+    goal = await _create_goal(db_session, patient.id)
+    event = await _create_event(db_session, patient.id, EventType.DAY_2)
+
+    result = await execute_checkin(db_session, event.id)
+
+    # LLM was called
+    assert mock_llm.called
+    call_kwargs = mock_llm.call_args.kwargs
+    # System prompt contains tone instruction
+    assert "celebratory" in call_kwargs["system_prompt"].lower() or "celebration" in call_kwargs["system_prompt"].lower()
+    # System prompt contains nudge framing
+    assert "Behavioral framing" in call_kwargs["system_prompt"]
+    assert result.status == ScheduleStatus.SENT
+
+
+@pytest.mark.asyncio
+@patch("app.services.followup_service.generate_llm_response", new_callable=AsyncMock)
+@patch("app.services.followup_service._get_adherence_percentage", new_callable=AsyncMock)
+async def test_checkin_nudge_prompt_reaches_llm(
+    mock_adherence, mock_llm, db_session
+):
+    """The nudge_prompt built by the nudge engine is included in the LLM system prompt."""
+    mock_adherence.return_value = 30.0  # nudge tone, SOCIAL_PROOF nudge type
+    mock_llm.return_value = "Many patients like you found that small steps add up!"
+
+    patient = await _create_patient(db_session)
+    goal = await _create_goal(db_session, patient.id)
+    event = await _create_event(db_session, patient.id, EventType.DAY_5)
+
+    await execute_checkin(db_session, event.id)
+
+    call_kwargs = mock_llm.call_args.kwargs
+    # Nudge prompt for SOCIAL_PROOF contains "social proof"
+    assert "social proof" in call_kwargs["system_prompt"].lower() or "adherence" in call_kwargs["system_prompt"].lower()

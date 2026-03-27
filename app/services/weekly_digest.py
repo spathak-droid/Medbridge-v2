@@ -16,6 +16,7 @@ from app.models.enums import EventType, PatientPhase, ScheduleStatus
 from app.models.goal import Goal
 from app.models.patient import Patient
 from app.models.schedule_event import ScheduleEvent
+from app.services.llm_provider import generate_llm_response
 from app.services.safety_pipeline import run_safety_pipeline
 
 
@@ -116,25 +117,31 @@ def build_digest_prompt(data: dict) -> str:
 # Digest generation
 # ---------------------------------------------------------------------------
 
+DIGEST_SYSTEM_PROMPT = (
+    "You are a supportive rehabilitation coach writing a weekly progress digest. "
+    "Write a warm, personalized summary in 3-5 sentences. "
+    "Reference the patient's actual numbers (streak, adherence, days completed). "
+    "Never provide medical advice, diagnoses, or medication recommendations. "
+    "Focus on progress celebration and motivation for the coming week."
+)
+
 
 async def _generate_digest_message(
     prompt: str,
     *,
+    patient_id: int,
     augmented_prompt: bool = False,
 ) -> str:
-    """Generate a weekly digest message.
-
-    For MVP, returns a deterministic message. In production, this would
-    call an LLM with the prompt.
-    """
+    """Generate a weekly digest message via LLM."""
+    system = DIGEST_SYSTEM_PROMPT
     if augmented_prompt:
-        return (
-            "Here's your weekly progress update! Keep up the great work "
-            "with your exercises. Every day counts toward your recovery."
-        )
-    return (
-        "Here's your weekly progress update! You're making steady progress "
-        "toward your goal. Keep showing up — consistency is what drives results."
+        from app.services.safety_pipeline import AUGMENTED_RETRY_INSTRUCTION
+        system += f"\n\n{AUGMENTED_RETRY_INSTRUCTION}"
+
+    return await generate_llm_response(
+        messages=[{"role": "user", "content": prompt}],
+        system_prompt=system,
+        patient_id=patient_id,
     )
 
 
@@ -177,6 +184,7 @@ async def execute_weekly_digest(
         patient_id=patient.id,
         generate_fn=lambda augmented_prompt=False: _generate_digest_message(
             prompt,
+            patient_id=patient.id,
             augmented_prompt=augmented_prompt,
         ),
     )
