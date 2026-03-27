@@ -22,6 +22,7 @@ from app.models.enums import EventType, PatientPhase, ScheduleStatus
 from app.models.goal import Goal
 from app.models.patient import Patient
 from app.models.schedule_event import ScheduleEvent
+from app.services.llm_provider import generate_llm_response
 from app.services.nudge_engine import build_nudge_prompt, select_nudge_type
 from app.services.safety_pipeline import run_safety_pipeline
 
@@ -55,6 +56,14 @@ TONE_PROMPTS: dict[str, str] = {
         "Ask how things are going and offer support."
     ),
 }
+
+
+CHECKIN_SYSTEM_PROMPT = (
+    "You are a supportive rehabilitation coach writing a scheduled check-in message. "
+    "Keep it to 2-3 sentences. Be warm, specific, and motivating. "
+    "Never provide medical advice, diagnoses, or medication recommendations. "
+    "Focus only on exercise motivation and emotional support."
+)
 
 
 def determine_tone(adherence_pct: float | None) -> str:
@@ -144,36 +153,28 @@ async def _generate_checkin_message(
     goal_text: str,
     tone: str,
     event_type: EventType,
+    nudge_prompt: str = "",
+    patient_id: int,
     augmented_prompt: bool = False,
 ) -> str:
-    """Generate a check-in message using tone-specific prompts.
-
-    For MVP, returns a deterministic message based on tone and goal.
-    In production, this would call an LLM.
-    """
+    """Generate a check-in message via LLM with tone and nudge framing."""
     day_label = event_type.value.replace("_", " ")
+    tone_instruction = TONE_PROMPTS.get(tone, TONE_PROMPTS["check-in"]).format(goal=goal_text)
 
+    system_parts = [CHECKIN_SYSTEM_PROMPT, f"\nThis is a {day_label} check-in.", tone_instruction]
+    if nudge_prompt:
+        system_parts.append(f"\nBehavioral framing:\n{nudge_prompt}")
     if augmented_prompt:
-        return (
-            f"{day_label} check-in: Stay focused on your exercises! "
-            f"Your goal is {goal_text}."
-        )
+        from app.services.safety_pipeline import AUGMENTED_RETRY_INSTRUCTION
+        system_parts.append(f"\n{AUGMENTED_RETRY_INSTRUCTION}")
 
-    if tone == "celebration":
-        return (
-            f"{day_label} check-in: Amazing work! You've been doing great "
-            f"with your goal of {goal_text}. Keep it up!"
-        )
-    elif tone == "nudge":
-        return (
-            f"{day_label} check-in: Just checking in on your goal of {goal_text}. "
-            f"Even small steps count — you've got this!"
-        )
-    else:
-        return (
-            f"{day_label} check-in: How are things going with your goal of "
-            f"{goal_text}? I'm here to help!"
-        )
+    system_prompt = "\n".join(system_parts)
+
+    return await generate_llm_response(
+        messages=[{"role": "user", "content": f"Write a check-in message for my goal: {goal_text}"}],
+        system_prompt=system_prompt,
+        patient_id=patient_id,
+    )
 
 
 async def execute_checkin(
@@ -249,6 +250,8 @@ async def execute_checkin(
             goal_text=goal_text,
             tone=tone,
             event_type=event.event_type,
+            nudge_prompt=nudge_prompt,
+            patient_id=patient.id,
             augmented_prompt=augmented_prompt,
         ),
     )
