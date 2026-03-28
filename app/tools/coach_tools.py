@@ -1,10 +1,10 @@
 """Coach tools for LangGraph — TICKET-006.
 
-Five LangGraph-compatible tools for the coaching agent:
+LangGraph-compatible tools for the coaching agent:
 - set_goal: persists a goal to the Goal model
 - set_reminder: creates a ScheduleEvent record
-- get_program_summary: returns stubbed exercise program data
-- get_adherence_summary: returns stubbed adherence stats
+- get_program_summary: returns exercise program data
+- get_adherence_summary: returns adherence stats
 - alert_clinician: persists an alert to the Alert model
 
 Uses a factory function (make_coach_tools) for DB session dependency injection.
@@ -19,7 +19,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.data.adherence import get_adherence_for_patient
-from app.data.programs import PROGRAMS, get_program_for_patient
+from app.data.programs import get_program_for_patient
 from app.models.alert import Alert
 from app.models.enums import AlertUrgency, EventType, ScheduleStatus
 from app.models.goal import Goal
@@ -93,7 +93,7 @@ def make_coach_tools(session: AsyncSession, patient_id: int) -> list:
     The patient_id is captured at creation time so the LLM doesn't need to
     provide internal DB IDs — it only supplies the domain-relevant arguments.
 
-    Returns a list of 5 LangGraph-compatible BaseTool instances.
+    Returns a list of LangGraph-compatible BaseTool instances.
     """
 
     @tool
@@ -176,7 +176,7 @@ def make_coach_tools(session: AsyncSession, patient_id: int) -> list:
 
         program = get_program_for_patient(patient.external_id, patient.program_type)
         if program is None:
-            return json.dumps({"message": "No program assigned yet. Use assign_program to assign one."})
+            return json.dumps({"message": "No program assigned yet. The clinician needs to assign one."})
 
         return json.dumps(program, indent=2)
 
@@ -215,40 +215,4 @@ def make_coach_tools(session: AsyncSession, patient_id: int) -> list:
         await session.commit()
         return f"Clinician alerted (urgency={urgency}): {reason}"
 
-    @tool
-    async def assign_program(program_type: str) -> str:
-        """Assign an exercise program to the patient based on their needs.
-
-        Available program types:
-        - knee_rehab_post_surgical: Post-surgical knee rehabilitation (quad sets, leg raises, heel slides, wall squats, calf raises)
-        - shoulder_rehab: Shoulder rehabilitation (pendulum swings, wall walks, external rotation, scapular squeezes)
-        - lower_back_rehab: Lower back rehabilitation (cat-cow, bird-dog, pelvic tilts, bridges, dead bugs)
-        - fall_prevention: Fall prevention & balance (tandem stance, heel-to-toe walk, single leg stand, sit-to-stand, step-ups)
-        - general_mobility: General mobility & flexibility (neck stretches, seated spinal twist, shoulder rolls, hamstring stretch)
-
-        Args:
-            program_type: One of the available program type keys listed above.
-        """
-        if program_type not in PROGRAMS:
-            available = ", ".join(PROGRAMS.keys())
-            return json.dumps({"error": f"Unknown program type '{program_type}'. Available: {available}"})
-
-        result = await session.execute(select(Patient).where(Patient.id == patient_id))
-        patient = result.scalar_one_or_none()
-        if patient is None:
-            return json.dumps({"error": "Patient not found"})
-
-        patient.program_type = program_type
-        session.add(patient)
-        await session.commit()
-
-        program = PROGRAMS[program_type]
-        exercise_names = [ex["name"] for ex in program["exercises"]]
-        return json.dumps({
-            "assigned": program_type,
-            "program_name": program["program_name"],
-            "exercises": exercise_names,
-            "message": f"Assigned {program['program_name']} with {len(exercise_names)} exercises.",
-        })
-
-    return [set_goal, set_reminder, assign_program, get_program_summary, get_adherence_summary, alert_clinician]
+    return [set_goal, set_reminder, get_program_summary, get_adherence_summary, alert_clinician]
