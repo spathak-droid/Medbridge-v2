@@ -394,23 +394,35 @@ async def find_or_create_patient(
     session: AsyncSession = Depends(get_session),
     user: AuthenticatedUser = Depends(set_audit_user),
 ) -> PatientListItem:
-    """Find or create a patient by Firebase UID. Used for real authenticated users."""
+    """Find patient by Firebase UID, or match by email for first-time signup.
+
+    Patients can only sign up if a clinician has pre-created their record.
+    """
     clean_name = body.name
 
+    # 1. Try to find by Firebase UID (returning user)
     result = await session.execute(
         select(Patient).where(Patient.external_id == body.firebase_uid)
     )
     patient = result.scalar_one_or_none()
 
     if patient is None:
-        patient = Patient(
-            external_id=body.firebase_uid,
-            name=clean_name,
-            logged_in=True,
-        )
-        session.add(patient)
-        await session.commit()
-        await session.refresh(patient)
+        # 2. Try to match by email (first-time signup linking to clinician-created record)
+        email = getattr(user, 'email', None)
+        if email:
+            email_result = await session.execute(
+                select(Patient).where(Patient.email == email)
+            )
+            patient = email_result.scalar_one_or_none()
+
+        if patient is None:
+            raise HTTPException(
+                status_code=403,
+                detail="Your clinician hasn't set up your account yet. Please contact your care team.",
+            )
+
+        # Link the clinician-created record to this Firebase UID
+        patient.external_id = body.firebase_uid
 
     # Update name if provided and different
     if clean_name and patient.name != clean_name:
@@ -425,7 +437,7 @@ async def find_or_create_patient(
     await session.refresh(patient)
 
     # Adherence
-    adh = get_adherence_for_patient(patient.external_id, patient.program_type)
+    adh = get_adherence_for_patient(patient.external_id or "", patient.program_type)
     adh_pct = adh["adherence_percentage"] if adh and isinstance(adh, dict) else None
 
     # Latest confirmed goal
@@ -439,7 +451,7 @@ async def find_or_create_patient(
     return PatientListItem(
         id=patient.id,
         name=display_name(patient.name),
-        external_id=patient.external_id,
+        external_id=patient.external_id or "",
         phase=patient.phase.value,
         consent_given=patient.consent_given,
         adherence_pct=adh_pct,
