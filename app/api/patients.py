@@ -108,16 +108,24 @@ async def list_patients(
     """List all patients with summary data. Use real_only=true to exclude demo/seeded patients."""
     query = select(Patient).order_by(Patient.id)
     if real_only:
-        query = query.where(~Patient.external_id.startswith("PT-"))
+        query = query.where(
+            (Patient.external_id.is_(None)) | (~Patient.external_id.startswith("PT-"))
+        )
     if exclude_uid:
-        query = query.where(Patient.external_id != exclude_uid)
+        query = query.where(
+            (Patient.external_id.is_(None)) | (Patient.external_id != exclude_uid)
+        )
     result = await session.execute(query)
     patients = result.scalars().all()
     items = []
     for p in patients:
-        # Adherence
-        adh = get_adherence_for_patient(p.external_id, p.program_type)
-        adh_pct = adh["adherence_percentage"] if adh and isinstance(adh, dict) else None
+        # Adherence — use real computation from exercise_logs
+        real_adh = await compute_adherence(session, p.id, p.external_id or "", p.program_type)
+        if real_adh:
+            adh_pct = real_adh["adherence_percentage"]
+        else:
+            adh = get_adherence_for_patient(p.external_id or "", p.program_type)
+            adh_pct = adh["adherence_percentage"] if adh and isinstance(adh, dict) else None
 
         # Latest confirmed goal
         goal_result = await session.execute(
@@ -130,7 +138,7 @@ async def list_patients(
         items.append(PatientListItem(
             id=p.id,
             name=display_name(p.name),
-            external_id=p.external_id,
+            external_id=p.external_id or "",
             phase=p.phase.value,
             consent_given=p.consent_given,
             adherence_pct=adh_pct,
