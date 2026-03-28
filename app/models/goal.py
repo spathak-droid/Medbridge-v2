@@ -15,6 +15,12 @@ class Goal(Base):
     raw_text: Mapped[str] = mapped_column(String, nullable=False)
     structured_goal: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     confirmed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    clinician_approved: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    clinician_rejected: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    rejection_reason: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
+    reviewed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, default=None
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)
     )
