@@ -2,14 +2,16 @@
 
 ## Problem
 
-The current implementation lets the AI coach assign exercise programs and set goals autonomously during onboarding. Per the project requirements, exercise programs are **prescribed by clinicians** — the coach should only reference already-assigned exercises and help patients set goals. Goals should require clinician approval before the patient transitions to ACTIVE.
+The current implementation lets the AI coach assign exercise programs and set goals autonomously during onboarding. Per the project requirements, exercise programs are **prescribed by clinicians** — the coach should only reference already-assigned exercises and help patients set goals. Goals should require clinician approval before the patient transitions to ACTIVE. Additionally, patients currently self-register without any clinician involvement — the clinician should create the patient record (with program) first, and patients can only sign up if a record already exists for their email.
 
 ## Corrected Patient Flow
 
 ```
-1. Clinician adds patient → assigns exercise program from dashboard
-2. Patient logs in → consent screen
-3. Patient starts chatting with coach
+1. Clinician creates patient from dashboard (name, email, exercise program)
+   → Patient record created in DB with program_type set, phase = PENDING
+2. Patient signs up at /patient/signup with the SAME email
+   → Matched to existing record. If no record exists → error: "Your clinician hasn't set up your account yet"
+3. Patient logs in → consent screen
 4. Coach references ALREADY-ASSIGNED exercises, helps patient set a goal
 5. Patient confirms goal → goal sent to clinician for approval
 6. Patient sees "Waiting for clinician review..." (stays in ONBOARDING)
@@ -19,7 +21,52 @@ The current implementation lets the AI coach assign exercise programs and set go
 
 ## Changes Required
 
-### 1. Remove `assign_program` from Coach Tools
+### 1. Clinician Creates Patient (New)
+
+**Backend: New endpoint in `app/api/patients.py`**
+
+**`POST /api/patients/create`** (clinician-only)
+- Request body: `{ name: string, email: string, program_type: string }`
+- Validates `program_type` against available programs
+- Validates email is not already taken
+- Creates `Patient` record with:
+  - `name` = provided name
+  - `email` = provided email
+  - `program_type` = provided program
+  - `phase` = PENDING
+  - `logged_in` = False
+  - `consent_given` = False
+  - `external_id` = NULL (set when patient signs up via Firebase)
+- Returns created patient
+
+**Frontend: Add "Add Patient" to clinician dashboard**
+
+**File:** `frontend/src/pages/ClinicianDashboard.tsx`
+- Add "Add Patient" button in the header area
+- Opens a modal/form with:
+  - Name (text input, required)
+  - Email (email input, required)
+  - Exercise Program (dropdown of 5 programs, required)
+- On submit → calls `POST /api/patients/create`
+- Patient appears in roster as PENDING
+
+### 2. Patient Signup: Email Matching Gate
+
+**Backend: Update `POST /api/patients/me` in `app/api/patients.py`**
+- Current behavior: creates a new Patient if none found by `firebase_uid`
+- New behavior:
+  1. First try to find by `firebase_uid` (returning user) → return as-is
+  2. If not found by UID, try to find by `email` (new signup matching clinician-created record)
+     - If found → link the record: set `external_id = firebase_uid`, `logged_in = True`
+     - If NOT found → return 403 error: "Your clinician hasn't set up your account yet. Please contact your care team."
+  3. No longer creates new Patient records — only links to existing ones
+
+**Frontend: Update `PatientSignup.tsx`**
+- Catch the 403 error from the backend
+- Display: "Your clinician hasn't set up your account yet. Please contact your care team."
+- Patient cannot proceed until clinician creates their record
+
+### 3. Remove `assign_program` from Coach Tools
 
 **File:** `app/tools/coach_tools.py`
 - Remove `assign_program` tool from `make_coach_tools()` return list entirely
@@ -31,7 +78,7 @@ The current implementation lets the AI coach assign exercise programs and set go
 
 **File:** `app/graphs/onboarding.py`
 - Update `ONBOARDING_SYSTEM_PROMPT`:
-  - Remove step 2 (assign_program instructions)
+  - Remove all assign_program instructions
   - Step 1: Welcome patient warmly
   - Step 2: Use `get_program_summary` to reference their assigned exercises
   - Step 3: Help them set a specific, achievable exercise goal
@@ -42,7 +89,7 @@ The current implementation lets the AI coach assign exercise programs and set go
 **File:** `app/graphs/active.py`
 - Remove `assign_program` references from system prompt (already partially done)
 
-### 2. Goal Model: Add Clinician Approval Fields
+### 4. Goal Model: Add Clinician Approval Fields
 
 **File:** `app/models/goal.py`
 - Add fields:
@@ -53,7 +100,7 @@ The current implementation lets the AI coach assign exercise programs and set go
 
 **Migration:** New alembic migration to add these columns to the `goals` table.
 
-### 3. Goal Approval API Endpoints
+### 5. Goal Approval API Endpoints
 
 **File:** `app/api/goals.py`
 
@@ -78,12 +125,12 @@ The current implementation lets the AI coach assign exercise programs and set go
 - Otherwise, goal stays in "waiting for clinician" state
 - Remove `schedule_followups()` call from here (moved to approve)
 
-### 4. Phase Machine Guard Update
+### 6. Phase Machine Guard Update
 
 **File:** `app/services/phase_machine.py`
 - Update ONBOARDING → ACTIVE guard: require BOTH `goal.confirmed == True` AND `goal.clinician_approved == True`
 
-### 5. Clinician Program Management UI
+### 7. Clinician Program Management UI
 
 **File:** `frontend/src/pages/PatientDetailPage.tsx`
 
@@ -100,7 +147,7 @@ Add to the right sidebar "Current Program" section:
 - Selection calls existing `POST /api/patients/{id}/program` endpoint
 - "Remove Program" calls existing `DELETE /api/patients/{id}/program` endpoint
 
-### 6. Clinician Goal Approval UI
+### 8. Clinician Goal Approval UI
 
 **File:** `frontend/src/pages/PatientDetailPage.tsx`
 
@@ -114,7 +161,7 @@ Update the "Patient Goals" section in the right sidebar:
 - For goals with `clinician_rejected = true`:
   - Show red "Rejected" badge with the reason
 
-### 7. Patient Waiting State UI
+### 9. Patient Waiting State UI
 
 **File:** `frontend/src/pages/ChatPage.tsx`
 
@@ -128,12 +175,12 @@ After patient confirms a goal (clicks "Confirm Goal"):
 - Add new state: confirmed but not yet approved → show "Waiting for clinician review" with a clock icon
 - If rejected: show rejection reason and prompt to set a new goal
 
-### 8. Goal Rejection Flow in Coach
+### 10. Goal Rejection Flow in Coach
 
 **File:** `app/graphs/onboarding.py`
 - Add to system prompt: if the patient's previous goal was rejected by the clinician, acknowledge the feedback, share the rejection reason, and help them set a revised goal
 
-### 9. Frontend API & Types Updates
+### 11. Frontend API & Types Updates
 
 **File:** `frontend/src/lib/types.ts`
 - Update `Goal` interface:
@@ -145,13 +192,14 @@ After patient confirms a goal (clicks "Confirm Goal"):
   ```
 
 **File:** `frontend/src/lib/api.ts`
+- Add `createPatient(name: string, email: string, programType: string): Promise<Patient>`
 - Add `approveGoal(goalId: number): Promise<Goal>`
 - Add `rejectGoal(goalId: number, reason: string): Promise<Goal>`
 - Add `assignProgram(patientId: number, programType: string): Promise<void>`
 - Add `removeProgram(patientId: number): Promise<void>`
 - Add `getAvailablePrograms(): Promise<Program[]>`
 
-### 10. Backend Response Model Update
+### 12. Backend Response Model Update
 
 **File:** `app/api/goals.py`
 - Update `GoalResponse` to include new fields: `clinician_approved`, `clinician_rejected`, `rejection_reason`, `reviewed_at`
@@ -159,12 +207,12 @@ After patient confirms a goal (clicks "Confirm Goal"):
 ## Out of Scope
 
 - Custom exercise creation (only the 5 predefined programs)
-- Clinician creating patients from the dashboard (patients self-register)
 - Email/push notifications when goal is approved/rejected (future enhancement)
 - Bulk goal approval
+- Clinician account management (clinicians self-register as before)
 
 ## Testing
 
-- Backend: test approve/reject endpoints, phase transition guards, tool filtering
-- Frontend: test GoalCard states, program assignment UI, approval buttons
-- Integration: full flow from program assignment → onboarding → goal → approval → ACTIVE
+- Backend: test patient creation endpoint, email matching gate, approve/reject endpoints, phase transition guards, tool filtering
+- Frontend: test signup error for unregistered emails, GoalCard states, program assignment UI, approval buttons, add patient modal
+- Integration: full flow from clinician creates patient → patient signs up → onboarding → goal → clinician approval → ACTIVE
