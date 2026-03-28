@@ -72,7 +72,7 @@ class TestOnboardingToActive:
         patient = await _create_patient(
             db_session, phase=PatientPhase.ONBOARDING, consent_given=True,
         )
-        goal = Goal(patient_id=patient.id, raw_text="Walk daily", confirmed=True)
+        goal = Goal(patient_id=patient.id, raw_text="Walk daily", confirmed=True, clinician_approved=True)
         db_session.add(goal)
         await db_session.commit()
 
@@ -227,8 +227,8 @@ class TestTimestampRecording:
         updated = await machine.transition(patient.id, PatientPhase.ONBOARDING)
         first_ts = updated.phase_updated_at
 
-        # Add confirmed goal so ONBOARDING → ACTIVE is valid
-        goal = Goal(patient_id=patient.id, raw_text="Walk daily", confirmed=True)
+        # Add confirmed + clinician-approved goal so ONBOARDING → ACTIVE is valid
+        goal = Goal(patient_id=patient.id, raw_text="Walk daily", confirmed=True, clinician_approved=True)
         db_session.add(goal)
         await db_session.commit()
 

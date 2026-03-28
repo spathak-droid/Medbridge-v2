@@ -9,10 +9,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
 from app.main import app
+from app.middleware.auth import AuthenticatedUser, get_current_user
+from app.api.dependencies import require_own_patient_data, set_audit_user
 from app.models.conversation import Conversation
 from app.models.enums import MessageRole, PatientPhase, SafetyStatus
 from app.models.message import Message
 from app.models.patient import Patient
+
+_fake_user = AuthenticatedUser(uid="test-uid", email="test@test.com", role="clinician")
 
 
 async def _seed_patient(
@@ -71,6 +75,9 @@ class TestGetConversations:
         await _seed_conversation_with_messages(db_session, patient.id)
 
         app.dependency_overrides[get_session] = lambda: db_session
+        app.dependency_overrides[get_current_user] = lambda: _fake_user
+        app.dependency_overrides[require_own_patient_data] = lambda: _fake_user
+        app.dependency_overrides[set_audit_user] = lambda: _fake_user
         try:
             transport = ASGITransport(app=app)
             async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -91,6 +98,9 @@ class TestGetConversations:
         patient = await _seed_patient(db_session, external_id="chat-pat-new")
 
         app.dependency_overrides[get_session] = lambda: db_session
+        app.dependency_overrides[get_current_user] = lambda: _fake_user
+        app.dependency_overrides[require_own_patient_data] = lambda: _fake_user
+        app.dependency_overrides[set_audit_user] = lambda: _fake_user
         try:
             transport = ASGITransport(app=app)
             async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -107,6 +117,9 @@ class TestGetConversations:
         await _seed_conversation_with_messages(db_session, patient.id, message_count=2)
 
         app.dependency_overrides[get_session] = lambda: db_session
+        app.dependency_overrides[get_current_user] = lambda: _fake_user
+        app.dependency_overrides[require_own_patient_data] = lambda: _fake_user
+        app.dependency_overrides[set_audit_user] = lambda: _fake_user
         try:
             transport = ASGITransport(app=app)
             async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -122,6 +135,9 @@ class TestGetConversations:
     async def test_nonexistent_patient_returns_404(self, db_session: AsyncSession):
         """GET conversations for nonexistent patient returns 404."""
         app.dependency_overrides[get_session] = lambda: db_session
+        app.dependency_overrides[get_current_user] = lambda: _fake_user
+        app.dependency_overrides[require_own_patient_data] = lambda: _fake_user
+        app.dependency_overrides[set_audit_user] = lambda: _fake_user
         try:
             transport = ASGITransport(app=app)
             async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -148,6 +164,9 @@ class TestGetConversations:
         await db_session.commit()
 
         app.dependency_overrides[get_session] = lambda: db_session
+        app.dependency_overrides[get_current_user] = lambda: _fake_user
+        app.dependency_overrides[require_own_patient_data] = lambda: _fake_user
+        app.dependency_overrides[set_audit_user] = lambda: _fake_user
         try:
             transport = ASGITransport(app=app)
             async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -174,6 +193,9 @@ class TestPostCoachMessage:
         await db_session.refresh(conv)
 
         app.dependency_overrides[get_session] = lambda: db_session
+        app.dependency_overrides[get_current_user] = lambda: _fake_user
+        app.dependency_overrides[require_own_patient_data] = lambda: _fake_user
+        app.dependency_overrides[set_audit_user] = lambda: _fake_user
         try:
             transport = ASGITransport(app=app)
             async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -201,6 +223,9 @@ class TestPostCoachMessage:
         )
 
         app.dependency_overrides[get_session] = lambda: db_session
+        app.dependency_overrides[get_current_user] = lambda: _fake_user
+        app.dependency_overrides[require_own_patient_data] = lambda: _fake_user
+        app.dependency_overrides[set_audit_user] = lambda: _fake_user
         try:
             transport = ASGITransport(app=app)
             async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -220,6 +245,9 @@ class TestPostCoachMessage:
     async def test_send_message_nonexistent_patient_returns_404(self, db_session: AsyncSession):
         """POST message for nonexistent patient returns 404."""
         app.dependency_overrides[get_session] = lambda: db_session
+        app.dependency_overrides[get_current_user] = lambda: _fake_user
+        app.dependency_overrides[require_own_patient_data] = lambda: _fake_user
+        app.dependency_overrides[set_audit_user] = lambda: _fake_user
         try:
             transport = ASGITransport(app=app)
             async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -239,6 +267,9 @@ class TestPostCoachMessage:
         patient = await _seed_patient(db_session, external_id="chat-pat-empty")
 
         app.dependency_overrides[get_session] = lambda: db_session
+        app.dependency_overrides[get_current_user] = lambda: _fake_user
+        app.dependency_overrides[require_own_patient_data] = lambda: _fake_user
+        app.dependency_overrides[set_audit_user] = lambda: _fake_user
         try:
             transport = ASGITransport(app=app)
             async with AsyncClient(transport=transport, base_url="http://test") as client:

@@ -5,7 +5,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
 from app.main import app
+from app.middleware.auth import AuthenticatedUser, get_current_user
+from app.api.dependencies import require_own_patient_data, set_audit_user
 from app.models.patient import Patient
+
+_fake_user = AuthenticatedUser(uid="test-uid", email="test@test.com", role="clinician")
 
 
 async def _create_patient(
@@ -36,6 +40,9 @@ class TestGetConsentStatus:
         patient = await _create_patient(db_session, logged_in=True, consent_given=False)
 
         app.dependency_overrides[get_session] = lambda: db_session
+        app.dependency_overrides[get_current_user] = lambda: _fake_user
+        app.dependency_overrides[require_own_patient_data] = lambda: _fake_user
+        app.dependency_overrides[set_audit_user] = lambda: _fake_user
         try:
             transport = ASGITransport(app=app)
             async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -53,6 +60,9 @@ class TestGetConsentStatus:
         )
 
         app.dependency_overrides[get_session] = lambda: db_session
+        app.dependency_overrides[get_current_user] = lambda: _fake_user
+        app.dependency_overrides[require_own_patient_data] = lambda: _fake_user
+        app.dependency_overrides[set_audit_user] = lambda: _fake_user
         try:
             transport = ASGITransport(app=app)
             async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -66,6 +76,9 @@ class TestGetConsentStatus:
     async def test_returns_404_for_nonexistent_patient(self, db_session: AsyncSession):
         """GET on nonexistent patient returns 404."""
         app.dependency_overrides[get_session] = lambda: db_session
+        app.dependency_overrides[get_current_user] = lambda: _fake_user
+        app.dependency_overrides[require_own_patient_data] = lambda: _fake_user
+        app.dependency_overrides[set_audit_user] = lambda: _fake_user
         try:
             transport = ASGITransport(app=app)
             async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -81,6 +94,9 @@ class TestGetConsentStatus:
         )
 
         app.dependency_overrides[get_session] = lambda: db_session
+        app.dependency_overrides[get_current_user] = lambda: _fake_user
+        app.dependency_overrides[require_own_patient_data] = lambda: _fake_user
+        app.dependency_overrides[set_audit_user] = lambda: _fake_user
         try:
             transport = ASGITransport(app=app)
             async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -105,6 +121,9 @@ class TestGetConsentStatus:
         )
 
         app.dependency_overrides[get_session] = lambda: db_session
+        app.dependency_overrides[get_current_user] = lambda: _fake_user
+        app.dependency_overrides[require_own_patient_data] = lambda: _fake_user
+        app.dependency_overrides[set_audit_user] = lambda: _fake_user
         try:
             transport = ASGITransport(app=app)
             async with AsyncClient(transport=transport, base_url="http://test") as client:

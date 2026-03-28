@@ -42,6 +42,10 @@ const mockGoals: Goal[] = [
     patient_id: 1,
     raw_text: 'Walk 30 minutes 3 times a week',
     confirmed: true,
+    clinician_approved: true,
+    clinician_rejected: false,
+    rejection_reason: null,
+    reviewed_at: null,
     created_at: '2024-01-15T10:00:00Z',
   },
 ]
@@ -231,7 +235,7 @@ describe('ChatPage', () => {
     })
   })
 
-  it('shows "Goal confirmed!" after confirming goal', async () => {
+  it('shows "Submitted for review" after confirming goal', async () => {
     const user = userEvent.setup()
     const conversationWithGoal: Conversation[] = [
       {
@@ -256,6 +260,10 @@ describe('ChatPage', () => {
       patient_id: 1,
       raw_text: 'Walk 30 minutes 3 times a week',
       confirmed: true,
+      clinician_approved: false,
+      clinician_rejected: false,
+      rejection_reason: null,
+      reviewed_at: null,
       created_at: '2024-01-15T10:00:00Z',
     })
 
@@ -268,7 +276,7 @@ describe('ChatPage', () => {
     await user.click(screen.getByRole('button', { name: /confirm/i }))
 
     await waitFor(() => {
-      expect(screen.getByText(/goal confirmed/i)).toBeInTheDocument()
+      expect(screen.getByText(/submitted for review/i)).toBeInTheDocument()
     })
   })
 

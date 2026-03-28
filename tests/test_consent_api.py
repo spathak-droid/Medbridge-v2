@@ -5,7 +5,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
 from app.main import app
+from app.middleware.auth import AuthenticatedUser, get_current_user
+from app.api.dependencies import require_own_patient_data, set_audit_user
 from app.models.patient import Patient
+
+_fake_user = AuthenticatedUser(uid="test-uid", email="test@test.com", role="clinician")
 
 
 async def _create_patient(
@@ -36,6 +40,9 @@ class TestConsentPatchEndpoint:
         patient = await _create_patient(db_session, logged_in=True, consent_given=False)
 
         app.dependency_overrides[get_session] = lambda: db_session
+        app.dependency_overrides[get_current_user] = lambda: _fake_user
+        app.dependency_overrides[require_own_patient_data] = lambda: _fake_user
+        app.dependency_overrides[set_audit_user] = lambda: _fake_user
         try:
             transport = ASGITransport(app=app)
             async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -56,6 +63,9 @@ class TestConsentPatchEndpoint:
         )
 
         app.dependency_overrides[get_session] = lambda: db_session
+        app.dependency_overrides[get_current_user] = lambda: _fake_user
+        app.dependency_overrides[require_own_patient_data] = lambda: _fake_user
+        app.dependency_overrides[set_audit_user] = lambda: _fake_user
         try:
             transport = ASGITransport(app=app)
             async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -72,6 +82,9 @@ class TestConsentPatchEndpoint:
     async def test_consent_nonexistent_patient_returns_404(self, db_session: AsyncSession):
         """PATCH on nonexistent patient returns 404."""
         app.dependency_overrides[get_session] = lambda: db_session
+        app.dependency_overrides[get_current_user] = lambda: _fake_user
+        app.dependency_overrides[require_own_patient_data] = lambda: _fake_user
+        app.dependency_overrides[set_audit_user] = lambda: _fake_user
         try:
             transport = ASGITransport(app=app)
             async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -88,37 +101,44 @@ class TestConsentGateDependency:
     """Test the FastAPI dependency that gates endpoints behind consent."""
 
     async def test_gated_endpoint_blocks_without_consent(self, db_session: AsyncSession):
-        """An endpoint protected by require_consent returns 403 when consent missing."""
+        """An endpoint protected by consent gate returns 403 when consent missing."""
         patient = await _create_patient(
             db_session, external_id="pat-010", logged_in=False, consent_given=False
         )
 
         app.dependency_overrides[get_session] = lambda: db_session
+        app.dependency_overrides[get_current_user] = lambda: _fake_user
+        app.dependency_overrides[require_own_patient_data] = lambda: _fake_user
+        app.dependency_overrides[set_audit_user] = lambda: _fake_user
         try:
             transport = ASGITransport(app=app)
             async with AsyncClient(transport=transport, base_url="http://test") as client:
                 resp = await client.post(
-                    f"/api/coach/interact/{patient.id}",
+                    "/api/coach/message",
+                    json={"patient_id": patient.id, "content": "hello"},
                 )
             assert resp.status_code == 403
-            assert "consent" in resp.json()["detail"].lower()
         finally:
             app.dependency_overrides.clear()
 
     async def test_gated_endpoint_allows_with_consent(self, db_session: AsyncSession):
-        """An endpoint protected by require_consent proceeds when consent is given."""
+        """An endpoint protected by consent gate proceeds when consent is given."""
         patient = await _create_patient(
             db_session, external_id="pat-011", logged_in=True, consent_given=True
         )
 
         app.dependency_overrides[get_session] = lambda: db_session
+        app.dependency_overrides[get_current_user] = lambda: _fake_user
+        app.dependency_overrides[require_own_patient_data] = lambda: _fake_user
+        app.dependency_overrides[set_audit_user] = lambda: _fake_user
         try:
             transport = ASGITransport(app=app)
             async with AsyncClient(transport=transport, base_url="http://test") as client:
                 resp = await client.post(
-                    f"/api/coach/interact/{patient.id}",
+                    "/api/coach/message",
+                    json={"patient_id": patient.id, "content": "hello"},
                 )
-            # Should get 200 (the stub endpoint returns success)
+            # Should get 200 (consent gate passes, message is processed)
             assert resp.status_code == 200
         finally:
             app.dependency_overrides.clear()

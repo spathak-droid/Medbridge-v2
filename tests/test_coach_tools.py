@@ -52,7 +52,7 @@ class TestToolMetadata:
     async def test_make_coach_tools_returns_six_tools(self, db_session):
         patient = await _create_patient(db_session)
         tools = make_coach_tools(db_session, patient.id)
-        assert len(tools) == 6
+        assert len(tools) == 5
 
     async def test_all_tools_are_base_tool_instances(self, db_session):
         patient = await _create_patient(db_session, external_id="tool-meta-2")
@@ -67,7 +67,6 @@ class TestToolMetadata:
         expected = {
             "set_goal",
             "set_reminder",
-            "assign_program",
             "get_program_summary",
             "get_adherence_summary",
             "alert_clinician",
@@ -138,7 +137,7 @@ class TestSetReminderTool:
         tools = make_coach_tools(db_session, patient.id)
         set_reminder = next(t for t in tools if t.name == "set_reminder")
 
-        scheduled_time = "2025-01-15T09:00:00Z"
+        scheduled_time = "2099-01-15T09:00:00Z"
         result = await set_reminder.ainvoke(
             {
                 "message": "Time for your exercises!",
@@ -165,7 +164,7 @@ class TestSetReminderTool:
         result = await set_reminder.ainvoke(
             {
                 "message": "Don't forget to hydrate",
-                "scheduled_time": "2025-02-01T10:00:00Z",
+                "scheduled_time": "2099-02-01T10:00:00Z",
             }
         )
         assert "reminder" in result.lower() or "scheduled" in result.lower()
@@ -311,4 +310,4 @@ class TestToolNodeRegistration:
         tools = make_coach_tools(db_session, patient.id)
         ToolNode(tools)  # verifies registration doesn't error
         tool_names = {t.name for t in tools}
-        assert len(tool_names) == 6
+        assert len(tool_names) == 5
