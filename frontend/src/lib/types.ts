@@ -57,6 +57,10 @@ export interface Goal {
   raw_text: string
   structured_goal?: GoalDetails | null
   confirmed: boolean
+  clinician_approved: boolean
+  clinician_rejected: boolean
+  rejection_reason: string | null
+  reviewed_at: string | null
   created_at: string
 }
 
@@ -243,11 +247,20 @@ export interface UnansweredPatient {
 }
 
 export interface MilestoneEvent {
-  event_type: 'goal_confirmed' | 'phase_change' | 'alert_generated'
+  event_type: 'goal_confirmed' | 'phase_change' | 'alert_generated' | 'streak_milestone' | 'adherence_milestone'
   patient_id: number
   patient_name: string
   description: string
   timestamp: string
+}
+
+export interface ClinicalNote {
+  id: number
+  patient_id: number
+  clinician_uid: string
+  content: string
+  created_at: string
+  updated_at: string
 }
 
 export interface AnalyticsV2Response {

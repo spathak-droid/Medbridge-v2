@@ -6,6 +6,7 @@ import type {
   AnalyticsV2Response,
   AvailableProgram,
   ChatMessage,
+  ClinicalNote,
   ConsentResponse,
   ConsentStatus,
   Conversation,
@@ -38,8 +39,8 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
   }
 
   // Check for demo user in localStorage
-  const demoRole = localStorage.getItem('medbridge_demo_role')
-  const demoUid = localStorage.getItem('medbridge_demo_uid')
+  const demoRole = localStorage.getItem('carearc_demo_role')
+  const demoUid = localStorage.getItem('carearc_demo_uid')
   if (demoRole && demoUid) {
     return { 'X-Demo-User': `${demoUid}:${demoRole}` }
   }
@@ -155,6 +156,18 @@ export function unlogExercise(patientId: number, exerciseId: string, completedDa
     method: 'DELETE',
     body: JSON.stringify({ exercise_id: exerciseId, completed_date: completedDate }),
   })
+}
+
+// Exercise ratings
+export function rateExercises(patientId: number, exerciseFingerprint: string, rating: number): Promise<{ saved: boolean; already_rated: boolean }> {
+  return apiFetch<{ saved: boolean; already_rated: boolean }>(`/api/patients/${patientId}/exercises/rate`, {
+    method: 'POST',
+    body: JSON.stringify({ exercise_fingerprint: exerciseFingerprint, rating }),
+  })
+}
+
+export function getRatedExercises(patientId: number): Promise<string[]> {
+  return apiFetch<string[]>(`/api/patients/${patientId}/exercises/rated`)
 }
 
 // Patient program
@@ -305,6 +318,26 @@ export function confirmGoal(goalId: number): Promise<Goal> {
   })
 }
 
+export function approveGoal(goalId: number): Promise<Goal> {
+  return apiFetch<Goal>(`/api/goals/${goalId}/approve`, {
+    method: 'POST',
+  })
+}
+
+export function rejectGoal(goalId: number, reason: string): Promise<Goal> {
+  return apiFetch<Goal>(`/api/goals/${goalId}/reject`, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
+  })
+}
+
+export function createPatient(name: string, email: string, programType: string): Promise<{ id: number; name: string; email: string; program_type: string; phase: string; consent_given: boolean }> {
+  return apiFetch(`/api/patients/create`, {
+    method: 'POST',
+    body: JSON.stringify({ name, email, program_type: programType }),
+  })
+}
+
 export function getConsentStatus(patientId: number): Promise<ConsentStatus> {
   return apiFetch<ConsentStatus>(`/api/patients/${patientId}/consent`)
 }
@@ -321,6 +354,24 @@ export function registerRole(role: 'patient' | 'clinician'): Promise<{ uid: stri
   return apiFetch<{ uid: string; role: string }>('/api/auth/register', {
     method: 'POST',
     body: JSON.stringify({ role }),
+  })
+}
+
+// Clinical notes
+export function getPatientNotes(patientId: number): Promise<ClinicalNote[]> {
+  return apiFetch<ClinicalNote[]>(`/api/patients/${patientId}/notes`)
+}
+
+export function createPatientNote(patientId: number, content: string): Promise<ClinicalNote> {
+  return apiFetch<ClinicalNote>(`/api/patients/${patientId}/notes`, {
+    method: 'POST',
+    body: JSON.stringify({ content }),
+  })
+}
+
+export function deletePatientNote(patientId: number, noteId: number): Promise<{ deleted: boolean }> {
+  return apiFetch<{ deleted: boolean }>(`/api/patients/${patientId}/notes/${noteId}`, {
+    method: 'DELETE',
   })
 }
 
