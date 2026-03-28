@@ -3,11 +3,14 @@ import { useParams, Link } from 'react-router-dom'
 import { usePatient } from '../hooks/usePatient'
 import {
   approveGoal,
+  assignProgram,
+  clearProgram,
   createReminder,
   createPatientNote,
   deletePatientNote,
   getAdherence,
   getAlerts,
+  getAvailablePrograms,
   getGoals,
   getPatientNotes,
   getPatients,
@@ -58,6 +61,9 @@ export function PatientDetailPage() {
   const [rejectingGoalId, setRejectingGoalId] = useState<number | null>(null)
   const [rejectReason, setRejectReason] = useState('')
   const [goalActionLoading, setGoalActionLoading] = useState(false)
+  const [showProgramSelect, setShowProgramSelect] = useState(false)
+  const [programLoading, setProgramLoading] = useState(false)
+  const [availablePrograms, setAvailablePrograms] = useState<{ program_type: string; program_name: string; exercise_count: number }[]>([])
 
   const fetchData = () => {
     setError(null)
@@ -84,6 +90,7 @@ export function PatientDetailPage() {
 
   useEffect(() => {
     fetchData()
+    getAvailablePrograms().then(setAvailablePrograms).catch(() => {})
   }, [patientId])
 
   if (loading) {
@@ -360,7 +367,7 @@ export function PatientDetailPage() {
                 <h3 className="text-sm font-bold text-neutral-800">Current Program</h3>
                 <span className="text-[11px] text-neutral-400">Summary</span>
               </div>
-              {adherence && (
+              {adherence ? (
                 <>
                   <p className="text-sm text-neutral-600 mb-1">
                     Week {Math.min(adherence.weekly_breakdown.length, Math.ceil(adherence.days_completed / 7) || 1)}
@@ -371,14 +378,82 @@ export function PatientDetailPage() {
                     </svg>
                     {adherence.days_completed} / {adherence.total_days_in_program} days completed
                   </div>
+                  <div className="flex gap-2 mb-2">
+                    <button
+                      onClick={() => setActiveTab('program')}
+                      className="flex-1 py-2 rounded-lg border-2 border-primary-500 text-primary-600 text-sm font-semibold hover:bg-primary-50 transition-colors cursor-pointer"
+                    >
+                      View Program
+                    </button>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setShowProgramSelect(true)}
+                      className="flex-1 py-1.5 text-xs font-medium text-neutral-500 hover:text-neutral-700 hover:bg-neutral-50 rounded-lg transition cursor-pointer"
+                    >
+                      Change
+                    </button>
+                    <button
+                      disabled={programLoading}
+                      onClick={async () => {
+                        setProgramLoading(true)
+                        try {
+                          await clearProgram(patientId)
+                          fetchData()
+                        } catch {}
+                        setProgramLoading(false)
+                      }}
+                      className="flex-1 py-1.5 text-xs font-medium text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition disabled:opacity-50 cursor-pointer"
+                    >
+                      Remove
+                    </button>
+                  </div>
                 </>
+              ) : (
+                <div className="text-center py-3">
+                  <p className="text-sm text-neutral-400 mb-3">No program assigned</p>
+                  <button
+                    onClick={() => setShowProgramSelect(true)}
+                    className="w-full py-2 rounded-lg bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold transition-colors cursor-pointer"
+                  >
+                    Assign Program
+                  </button>
+                </div>
               )}
-              <button
-                onClick={() => setActiveTab('program')}
-                className="w-full py-2 rounded-lg border-2 border-primary-500 text-primary-600 text-sm font-semibold hover:bg-primary-50 transition-colors cursor-pointer"
-              >
-                View Program
-              </button>
+
+              {showProgramSelect && (
+                <div className="mt-3 pt-3 border-t border-neutral-100">
+                  <label className="block text-xs font-medium text-neutral-600 mb-1.5">Select Program</label>
+                  <select
+                    onChange={async (e) => {
+                      const val = e.target.value
+                      if (!val) return
+                      setProgramLoading(true)
+                      setShowProgramSelect(false)
+                      try {
+                        await assignProgram(patientId, val)
+                        fetchData()
+                      } catch {}
+                      setProgramLoading(false)
+                    }}
+                    defaultValue=""
+                    className="w-full px-3 py-2 border border-neutral-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white"
+                  >
+                    <option value="">Choose...</option>
+                    {availablePrograms.map((p) => (
+                      <option key={p.program_type} value={p.program_type}>
+                        {p.program_name} ({p.exercise_count} exercises)
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={() => setShowProgramSelect(false)}
+                    className="w-full mt-2 py-1.5 text-xs text-neutral-500 hover:text-neutral-700 font-medium cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Patient Goals */}
