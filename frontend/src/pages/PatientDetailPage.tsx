@@ -335,7 +335,7 @@ export function PatientDetailPage() {
                       if (!reminderMsg.trim() || !reminderDate) return
                       setSendingReminder(true)
                       try {
-                        const isoTime = `${reminderDate}T${reminderTime}:00Z`
+                        const isoTime = new Date(`${reminderDate}T${reminderTime}:00`).toISOString()
                         const newEvent = await createReminder(patientId, reminderMsg.trim(), isoTime)
                         setSchedule((prev) => [...prev, newEvent])
                         setReminderMsg('')
