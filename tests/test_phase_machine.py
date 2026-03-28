@@ -80,17 +80,17 @@ class TestOnboardingToActive:
         updated = await machine.transition(patient.id, PatientPhase.ACTIVE)
         assert updated.phase == PatientPhase.ACTIVE
 
-    async def test_blocked_without_confirmed_goal(self, db_session: AsyncSession):
+    async def test_transitions_without_goal(self, db_session: AsyncSession):
+        """ONBOARDING → ACTIVE no longer requires a confirmed goal."""
         patient = await _create_patient(
             db_session, external_id="pat-003", phase=PatientPhase.ONBOARDING,
         )
         machine = PhaseStateMachine(db_session)
-        with pytest.raises(TransitionError, match="goal"):
-            await machine.transition(patient.id, PatientPhase.ACTIVE)
-        await db_session.refresh(patient)
-        assert patient.phase == PatientPhase.ONBOARDING
+        updated = await machine.transition(patient.id, PatientPhase.ACTIVE)
+        assert updated.phase == PatientPhase.ACTIVE
 
-    async def test_blocked_with_unconfirmed_goal(self, db_session: AsyncSession):
+    async def test_transitions_with_unconfirmed_goal(self, db_session: AsyncSession):
+        """ONBOARDING → ACTIVE succeeds even with an unconfirmed goal."""
         patient = await _create_patient(
             db_session, external_id="pat-004", phase=PatientPhase.ONBOARDING,
         )
@@ -99,8 +99,8 @@ class TestOnboardingToActive:
         await db_session.commit()
 
         machine = PhaseStateMachine(db_session)
-        with pytest.raises(TransitionError, match="goal"):
-            await machine.transition(patient.id, PatientPhase.ACTIVE)
+        updated = await machine.transition(patient.id, PatientPhase.ACTIVE)
+        assert updated.phase == PatientPhase.ACTIVE
 
 
 class TestActiveToDormant:
@@ -163,7 +163,6 @@ class TestInvalidTransitions:
     @pytest.mark.parametrize(
         "from_phase,to_phase",
         [
-            (PatientPhase.PENDING, PatientPhase.ACTIVE),
             (PatientPhase.PENDING, PatientPhase.DORMANT),
             (PatientPhase.PENDING, PatientPhase.RE_ENGAGING),
             (PatientPhase.ONBOARDING, PatientPhase.DORMANT),

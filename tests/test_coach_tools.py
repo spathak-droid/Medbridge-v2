@@ -2,7 +2,6 @@
 
 Covers all acceptance criteria:
 - Each tool has name, description, input schema, return type
-- set_goal persists to Goal model
 - set_reminder creates a ScheduleEvent record
 - get_program_summary returns structured exercise summary (stubbed)
 - get_adherence_summary returns adherence stats (stubbed)
@@ -17,7 +16,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.alert import Alert
 from app.models.enums import AlertStatus, AlertUrgency, EventType, ScheduleStatus
-from app.models.goal import Goal
 from app.models.patient import Patient
 from app.models.schedule_event import ScheduleEvent
 from app.tools.coach_tools import make_coach_tools
@@ -52,7 +50,7 @@ class TestToolMetadata:
     async def test_make_coach_tools_returns_six_tools(self, db_session):
         patient = await _create_patient(db_session)
         tools = make_coach_tools(db_session, patient.id)
-        assert len(tools) == 5
+        assert len(tools) == 4
 
     async def test_all_tools_are_base_tool_instances(self, db_session):
         patient = await _create_patient(db_session, external_id="tool-meta-2")
@@ -65,7 +63,6 @@ class TestToolMetadata:
         tools = make_coach_tools(db_session, patient.id)
         names = {t.name for t in tools}
         expected = {
-            "set_goal",
             "set_reminder",
             "get_program_summary",
             "get_adherence_summary",
@@ -92,38 +89,6 @@ class TestToolMetadata:
 # ---------------------------------------------------------------------------
 # set_goal tool
 # ---------------------------------------------------------------------------
-
-
-class TestSetGoalTool:
-    async def test_set_goal_persists_to_db(self, db_session: AsyncSession):
-        patient = await _create_patient(db_session)
-        tools = make_coach_tools(db_session, patient.id)
-        set_goal = next(t for t in tools if t.name == "set_goal")
-
-        result = await set_goal.ainvoke(
-            {"goal_text": "Walk 30 minutes daily"}
-        )
-
-        assert "Walk 30 minutes daily" in result
-
-        # Verify persisted to DB
-        db_result = await db_session.execute(
-            select(Goal).where(Goal.patient_id == patient.id)
-        )
-        goal = db_result.scalar_one()
-        assert goal.raw_text == "Walk 30 minutes daily"
-        assert goal.patient_id == patient.id
-
-    async def test_set_goal_returns_confirmation_string(self, db_session: AsyncSession):
-        patient = await _create_patient(db_session, external_id="tool-pat-sg2")
-        tools = make_coach_tools(db_session, patient.id)
-        set_goal = next(t for t in tools if t.name == "set_goal")
-
-        result = await set_goal.ainvoke(
-            {"goal_text": "Stretch every morning"}
-        )
-        assert isinstance(result, str)
-        assert len(result) > 0
 
 
 # ---------------------------------------------------------------------------
@@ -310,4 +275,4 @@ class TestToolNodeRegistration:
         tools = make_coach_tools(db_session, patient.id)
         ToolNode(tools)  # verifies registration doesn't error
         tool_names = {t.name for t in tools}
-        assert len(tool_names) == 5
+        assert len(tool_names) == 4
