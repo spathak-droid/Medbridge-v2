@@ -13,14 +13,24 @@ from app.api.dependencies import require_own_patient_data, set_audit_user
 from app.data.adherence import compute_adherence, get_adherence_for_patient
 from app.data.programs import PROGRAMS, get_program_for_patient
 from app.middleware.auth import AuthenticatedUser, require_clinician
+from app.models.clinical_note import ClinicalNote
 from app.models.conversation import Conversation
 from app.models.enums import ScheduleStatus
 from app.models.exercise_log import ExerciseLog
+from app.models.exercise_rating import ExerciseRating
 from app.models.goal import Goal
 from app.models.patient_insight import PatientInsight
 from app.models.message import Message
 from app.models.patient import Patient
 from app.models.schedule_event import ScheduleEvent
+
+
+def display_name(name: str) -> str:
+    """Never show raw emails as patient names."""
+    if '@' in name:
+        return name.split('@')[0]
+    return name
+
 
 router = APIRouter(prefix="/api/patients", tags=["patients"])
 
@@ -33,6 +43,59 @@ class PatientListItem(BaseModel):
     consent_given: bool
     adherence_pct: float | None = None
     goal_summary: str | None = None
+
+
+class CreatePatientRequest(BaseModel):
+    name: str
+    email: str
+    program_type: str
+
+
+class CreatePatientResponse(BaseModel):
+    id: int
+    name: str
+    email: str
+    program_type: str
+    phase: str
+    consent_given: bool
+
+
+@router.post("/create", response_model=CreatePatientResponse)
+async def create_patient(
+    body: CreatePatientRequest,
+    session: AsyncSession = Depends(get_session),
+    _user: AuthenticatedUser = Depends(set_audit_user),
+) -> CreatePatientResponse:
+    """Clinician creates a patient record with an assigned exercise program."""
+    if body.program_type not in PROGRAMS:
+        available = ", ".join(PROGRAMS.keys())
+        raise HTTPException(status_code=400, detail=f"Invalid program type. Available: {available}")
+
+    existing = await session.execute(
+        select(Patient).where(Patient.email == body.email)
+    )
+    if existing.scalar_one_or_none() is not None:
+        raise HTTPException(status_code=409, detail="A patient with this email already exists")
+
+    patient = Patient(
+        name=body.name,
+        email=body.email,
+        program_type=body.program_type,
+        logged_in=False,
+        consent_given=False,
+    )
+    session.add(patient)
+    await session.commit()
+    await session.refresh(patient)
+
+    return CreatePatientResponse(
+        id=patient.id,
+        name=patient.name,
+        email=patient.email or "",
+        program_type=patient.program_type or "",
+        phase=patient.phase.value,
+        consent_given=patient.consent_given,
+    )
 
 
 @router.get("", response_model=list[PatientListItem])
@@ -66,7 +129,7 @@ async def list_patients(
 
         items.append(PatientListItem(
             id=p.id,
-            name=p.name,
+            name=display_name(p.name),
             external_id=p.external_id,
             phase=p.phase.value,
             consent_given=p.consent_given,
@@ -332,6 +395,8 @@ async def find_or_create_patient(
     user: AuthenticatedUser = Depends(set_audit_user),
 ) -> PatientListItem:
     """Find or create a patient by Firebase UID. Used for real authenticated users."""
+    clean_name = body.name
+
     result = await session.execute(
         select(Patient).where(Patient.external_id == body.firebase_uid)
     )
@@ -340,16 +405,16 @@ async def find_or_create_patient(
     if patient is None:
         patient = Patient(
             external_id=body.firebase_uid,
-            name=body.name,
+            name=clean_name,
             logged_in=True,
         )
         session.add(patient)
         await session.commit()
         await session.refresh(patient)
 
-    # Update name if it was previously set to email or is different
-    if body.name and patient.name != body.name:
-        patient.name = body.name
+    # Update name if provided and different
+    if clean_name and patient.name != clean_name:
+        patient.name = clean_name
 
     # Mark as logged in
     if not patient.logged_in:
@@ -373,7 +438,7 @@ async def find_or_create_patient(
 
     return PatientListItem(
         id=patient.id,
-        name=patient.name,
+        name=display_name(patient.name),
         external_id=patient.external_id,
         phase=patient.phase.value,
         consent_given=patient.consent_given,
@@ -600,6 +665,12 @@ async def log_exercise(
     if patient is None:
         raise HTTPException(status_code=404, detail="Patient not found")
 
+    # Consent gate — verified on every patient interaction
+    if not patient.logged_in:
+        raise HTTPException(status_code=403, detail="Patient must be logged in")
+    if not patient.consent_given:
+        raise HTTPException(status_code=403, detail="Patient consent required for coaching")
+
     # Check if already logged
     existing = await session.execute(
         select(ExerciseLog).where(
@@ -632,6 +703,16 @@ async def unlog_exercise(
     _user: AuthenticatedUser = Depends(require_own_patient_data),
 ) -> LogExerciseResponse:
     """Remove an exercise completion log for a given date."""
+    # Consent gate — verified on every patient interaction
+    result_p = await session.execute(select(Patient).where(Patient.id == patient_id))
+    patient = result_p.scalar_one_or_none()
+    if patient is None:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    if not patient.logged_in:
+        raise HTTPException(status_code=403, detail="Patient must be logged in")
+    if not patient.consent_given:
+        raise HTTPException(status_code=403, detail="Patient consent required for coaching")
+
     result = await session.execute(
         select(ExerciseLog).where(
             ExerciseLog.patient_id == patient_id,
@@ -870,3 +951,162 @@ async def _generate_insight(patient_id: int, session: AsyncSession) -> str:
         return summary
     except Exception as e:
         return f"Unable to generate insights at this time. Error: {str(e)[:100]}"
+
+
+# ---------------------------------------------------------------------------
+# Clinical Notes
+# ---------------------------------------------------------------------------
+
+
+class ClinicalNoteResponse(BaseModel):
+    id: int
+    patient_id: int
+    clinician_uid: str
+    content: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class CreateNoteRequest(BaseModel):
+    content: str
+
+
+@router.get("/{patient_id}/notes", response_model=list[ClinicalNoteResponse])
+async def get_patient_notes(
+    patient_id: int,
+    session: AsyncSession = Depends(get_session),
+    _user: AuthenticatedUser = Depends(require_clinician),
+) -> list[ClinicalNoteResponse]:
+    """List clinical notes for a patient (clinician only). Excludes soft-deleted notes."""
+    result = await session.execute(select(Patient).where(Patient.id == patient_id))
+    if result.scalar_one_or_none() is None:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    notes_result = await session.execute(
+        select(ClinicalNote)
+        .where(ClinicalNote.patient_id == patient_id, ClinicalNote.deleted_at.is_(None))
+        .order_by(ClinicalNote.created_at.desc())
+    )
+    notes = notes_result.scalars().all()
+
+    return [
+        ClinicalNoteResponse(
+            id=n.id,
+            patient_id=n.patient_id,
+            clinician_uid=n.clinician_uid,
+            content=n.content,
+            created_at=n.created_at,
+            updated_at=n.updated_at,
+        )
+        for n in notes
+    ]
+
+
+@router.post("/{patient_id}/notes", response_model=ClinicalNoteResponse)
+async def create_patient_note(
+    patient_id: int,
+    body: CreateNoteRequest,
+    session: AsyncSession = Depends(get_session),
+    user: AuthenticatedUser = Depends(require_clinician),
+) -> ClinicalNoteResponse:
+    """Create a clinical note for a patient (clinician only)."""
+    result = await session.execute(select(Patient).where(Patient.id == patient_id))
+    if result.scalar_one_or_none() is None:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    note = ClinicalNote(patient_id=patient_id, clinician_uid=user.uid, content=body.content)
+    session.add(note)
+    await session.commit()
+    await session.refresh(note)
+
+    return ClinicalNoteResponse(
+        id=note.id,
+        patient_id=note.patient_id,
+        clinician_uid=note.clinician_uid,
+        content=note.content,
+        created_at=note.created_at,
+        updated_at=note.updated_at,
+    )
+
+
+@router.delete("/{patient_id}/notes/{note_id}")
+async def delete_patient_note(
+    patient_id: int,
+    note_id: int,
+    session: AsyncSession = Depends(get_session),
+    _user: AuthenticatedUser = Depends(require_clinician),
+) -> dict:
+    """Soft-delete a clinical note (clinician only). Record is preserved for audit trail."""
+    result = await session.execute(
+        select(ClinicalNote).where(
+            ClinicalNote.id == note_id,
+            ClinicalNote.patient_id == patient_id,
+            ClinicalNote.deleted_at.is_(None),
+        )
+    )
+    note = result.scalar_one_or_none()
+    if note is None:
+        raise HTTPException(status_code=404, detail="Note not found")
+
+    note.deleted_at = datetime.now(timezone.utc)
+    session.add(note)
+    await session.commit()
+    return {"deleted": True}
+
+
+# ── Exercise Ratings ──────────────────────────────────────────────────
+
+
+class RateExerciseRequest(BaseModel):
+    exercise_fingerprint: str
+    rating: int
+
+
+class RateExerciseResponse(BaseModel):
+    saved: bool
+    already_rated: bool = False
+
+
+@router.post("/{patient_id}/exercises/rate", response_model=RateExerciseResponse)
+async def rate_exercises(
+    patient_id: int,
+    body: RateExerciseRequest,
+    session: AsyncSession = Depends(get_session),
+    _user: AuthenticatedUser = Depends(require_own_patient_data),
+) -> RateExerciseResponse:
+    """Save a one-time rating for a completed exercise set."""
+    if body.rating < 1 or body.rating > 5:
+        raise HTTPException(status_code=400, detail="Rating must be between 1 and 5")
+
+    existing = await session.execute(
+        select(ExerciseRating).where(
+            ExerciseRating.patient_id == patient_id,
+            ExerciseRating.exercise_fingerprint == body.exercise_fingerprint,
+        )
+    )
+    if existing.scalar_one_or_none() is not None:
+        return RateExerciseResponse(saved=False, already_rated=True)
+
+    rating = ExerciseRating(
+        patient_id=patient_id,
+        exercise_fingerprint=body.exercise_fingerprint,
+        rating=body.rating,
+    )
+    session.add(rating)
+    await session.commit()
+    return RateExerciseResponse(saved=True)
+
+
+@router.get("/{patient_id}/exercises/rated")
+async def get_rated_exercises(
+    patient_id: int,
+    session: AsyncSession = Depends(get_session),
+    _user: AuthenticatedUser = Depends(require_own_patient_data),
+) -> list[str]:
+    """Return list of exercise fingerprints already rated by this patient."""
+    result = await session.execute(
+        select(ExerciseRating.exercise_fingerprint).where(
+            ExerciseRating.patient_id == patient_id,
+        )
+    )
+    return list(result.scalars().all())
