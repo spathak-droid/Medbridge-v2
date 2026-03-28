@@ -125,8 +125,14 @@ export function PatientDetailPage() {
     )
   }
 
-  const programProgress = adherence
-    ? Math.round((adherence.days_completed / Math.max(adherence.total_days_in_program, 1)) * 100)
+  const programProgress = adherence?.per_exercise
+    ? (() => {
+        const entries = Object.values(adherence.per_exercise) as { completed: number; total: number }[]
+        if (entries.length === 0) return 0
+        const totalCompleted = entries.reduce((sum, e) => sum + e.completed, 0)
+        const totalExpected = entries.reduce((sum, e) => sum + e.total, 0)
+        return totalExpected > 0 ? Math.round((totalCompleted / totalExpected) * 100) : 0
+      })()
     : 0
   const upcomingSchedule = schedule.filter(s => s.status === 'PENDING')
 
