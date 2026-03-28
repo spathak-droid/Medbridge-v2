@@ -21,8 +21,8 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     """Upgrade schema."""
     with op.batch_alter_table('goals', schema=None) as batch_op:
-        batch_op.add_column(sa.Column('clinician_approved', sa.Boolean(), nullable=False, server_default=sa.text('0')))
-        batch_op.add_column(sa.Column('clinician_rejected', sa.Boolean(), nullable=False, server_default=sa.text('0')))
+        batch_op.add_column(sa.Column('clinician_approved', sa.Boolean(), nullable=False, server_default=sa.text('false')))
+        batch_op.add_column(sa.Column('clinician_rejected', sa.Boolean(), nullable=False, server_default=sa.text('false')))
         batch_op.add_column(sa.Column('rejection_reason', sa.String(), nullable=True))
         batch_op.add_column(sa.Column('reviewed_at', sa.DateTime(timezone=True), nullable=True))
 
