@@ -5,12 +5,15 @@ import type { GoalDetails } from '../../lib/types'
 interface GoalCardProps {
   goalText: string
   confirmed: boolean
+  clinicianApproved?: boolean
+  clinicianRejected?: boolean
+  rejectionReason?: string | null
   structuredGoal?: GoalDetails | null
   onConfirm: () => void
   onEdit: () => void
 }
 
-export function GoalCard({ goalText, confirmed, structuredGoal, onConfirm, onEdit }: GoalCardProps) {
+export function GoalCard({ goalText, confirmed, clinicianApproved, clinicianRejected, rejectionReason, structuredGoal, onConfirm, onEdit }: GoalCardProps) {
   const [showConfetti, setShowConfetti] = useState(false)
   const [detailsExpanded, setDetailsExpanded] = useState(false)
 
@@ -170,15 +173,40 @@ export function GoalCard({ goalText, confirmed, structuredGoal, onConfirm, onEdi
             )}
 
             {/* Actions */}
-            {confirmed ? (
+            {clinicianApproved ? (
               <div className="
                 flex items-center gap-2
-                text-sm font-semibold text-success-600
+                text-sm font-semibold text-green-600
               ">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                Goal confirmed!
+                Goal approved!
+              </div>
+            ) : clinicianRejected ? (
+              <div>
+                <div className="flex items-center gap-2 text-sm font-semibold text-red-600 mb-1">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 9.75l4.5 4.5m0-4.5l-4.5 4.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Goal not approved
+                </div>
+                {rejectionReason && (
+                  <p className="text-xs text-red-500 mb-2 ml-7">Reason: {rejectionReason}</p>
+                )}
+                <button onClick={onEdit} className="btn-ghost px-5 py-2 text-xs">
+                  Set a new goal
+                </button>
+              </div>
+            ) : confirmed ? (
+              <div className="
+                flex items-center gap-2
+                text-sm font-semibold text-amber-600
+              ">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Submitted for review
               </div>
             ) : (
               <div className="flex gap-2">

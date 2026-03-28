@@ -376,6 +376,9 @@ export function ChatPage({ patientId }: ChatPageProps) {
                   <GoalCard
                     goalText={msg.metadata.goal_text}
                     confirmed={confirmedGoalIds.has(msg.metadata.goal_id)}
+                    clinicianApproved={goalsMap.get(msg.metadata.goal_id)?.clinician_approved}
+                    clinicianRejected={goalsMap.get(msg.metadata.goal_id)?.clinician_rejected}
+                    rejectionReason={goalsMap.get(msg.metadata.goal_id)?.rejection_reason}
                     structuredGoal={goalsMap.get(msg.metadata.goal_id)?.structured_goal}
                     onConfirm={() =>
                       handleConfirmGoal(
