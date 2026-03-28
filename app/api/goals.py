@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
-from app.api.dependencies import set_audit_user
+from app.api.dependencies import require_consent, set_audit_user
 from app.middleware.auth import AuthenticatedUser
 from app.models.enums import PatientPhase
 from app.models.goal import Goal
@@ -28,7 +28,15 @@ class GoalResponse(BaseModel):
     raw_text: str
     structured_goal: dict | None = None
     confirmed: bool
+    clinician_approved: bool = False
+    clinician_rejected: bool = False
+    rejection_reason: str | None = None
+    reviewed_at: datetime | None = None
     created_at: datetime
+
+
+class RejectGoalRequest(BaseModel):
+    reason: str
 
 
 @router.post("/{goal_id}/confirm", response_model=GoalResponse)
@@ -37,39 +45,43 @@ async def confirm_goal(
     session: AsyncSession = Depends(get_session),
     _user: AuthenticatedUser = Depends(set_audit_user),
 ) -> GoalResponse:
-    """Mark a goal as confirmed and transition patient to ACTIVE phase.
+    """Patient confirms their goal.
 
-    Also schedules Day 2, 5, 7 follow-up check-ins.
+    If the clinician has already approved it, transitions to ACTIVE.
+    Otherwise, the goal waits for clinician approval.
     """
     result = await session.execute(select(Goal).where(Goal.id == goal_id))
     goal = result.scalar_one_or_none()
     if goal is None:
         raise HTTPException(status_code=404, detail="Goal not found")
 
+    # Consent gate
+    patient_result = await session.execute(
+        select(Patient).where(Patient.id == goal.patient_id)
+    )
+    patient = patient_result.scalar_one_or_none()
+    if patient:
+        if not patient.logged_in:
+            raise HTTPException(status_code=403, detail="Patient must be logged in")
+        if not patient.consent_given:
+            raise HTTPException(status_code=403, detail="Patient consent required for coaching")
+
     goal.confirmed = True
     session.add(goal)
     await session.commit()
     await session.refresh(goal)
 
-    # Transition patient from ONBOARDING → ACTIVE via state machine
-    patient_result = await session.execute(
-        select(Patient).where(Patient.id == goal.patient_id)
-    )
-    patient = patient_result.scalar_one_or_none()
-    now = datetime.now(timezone.utc)
-
-    if patient and patient.phase == PatientPhase.ONBOARDING:
+    # If clinician already approved → transition to ACTIVE
+    if goal.clinician_approved and patient and patient.phase == PatientPhase.ONBOARDING:
         try:
             machine = PhaseStateMachine(session)
             await machine.transition(patient.id, PatientPhase.ACTIVE)
         except Exception:
             logger.warning("Phase transition ONBOARDING→ACTIVE failed for patient %s", patient.id)
 
-    # Schedule Day 2, 5, 7 follow-up check-ins
-    if patient:
         try:
             await schedule_followups(
-                session, patient.id, onboarding_completed_at=now,
+                session, patient.id, onboarding_completed_at=datetime.now(timezone.utc),
             )
         except Exception:
             logger.exception("Failed to schedule follow-ups for patient %s", patient.id)
@@ -80,5 +92,100 @@ async def confirm_goal(
         raw_text=goal.raw_text,
         structured_goal=goal.structured_goal,
         confirmed=goal.confirmed,
+        clinician_approved=goal.clinician_approved,
+        clinician_rejected=goal.clinician_rejected,
+        rejection_reason=goal.rejection_reason,
+        reviewed_at=goal.reviewed_at,
+        created_at=goal.created_at,
+    )
+
+
+@router.post("/{goal_id}/approve", response_model=GoalResponse)
+async def approve_goal(
+    goal_id: int,
+    session: AsyncSession = Depends(get_session),
+    _user: AuthenticatedUser = Depends(set_audit_user),
+) -> GoalResponse:
+    """Clinician approves a patient's goal.
+
+    If the goal is also confirmed by the patient, transitions to ACTIVE
+    and schedules follow-up check-ins.
+    """
+    result = await session.execute(select(Goal).where(Goal.id == goal_id))
+    goal = result.scalar_one_or_none()
+    if goal is None:
+        raise HTTPException(status_code=404, detail="Goal not found")
+
+    goal.clinician_approved = True
+    goal.reviewed_at = datetime.now(timezone.utc)
+    session.add(goal)
+    await session.commit()
+    await session.refresh(goal)
+
+    # If both patient confirmed AND clinician approved → transition to ACTIVE
+    if goal.confirmed:
+        patient_result = await session.execute(
+            select(Patient).where(Patient.id == goal.patient_id)
+        )
+        patient = patient_result.scalar_one_or_none()
+        if patient and patient.phase == PatientPhase.ONBOARDING:
+            try:
+                machine = PhaseStateMachine(session)
+                await machine.transition(patient.id, PatientPhase.ACTIVE)
+            except Exception:
+                logger.warning("Phase transition ONBOARDING→ACTIVE failed for patient %s", patient.id)
+
+            try:
+                await schedule_followups(
+                    session, patient.id, onboarding_completed_at=datetime.now(timezone.utc),
+                )
+            except Exception:
+                logger.exception("Failed to schedule follow-ups for patient %s", patient.id)
+
+    return GoalResponse(
+        id=goal.id,
+        patient_id=goal.patient_id,
+        raw_text=goal.raw_text,
+        structured_goal=goal.structured_goal,
+        confirmed=goal.confirmed,
+        clinician_approved=goal.clinician_approved,
+        clinician_rejected=goal.clinician_rejected,
+        rejection_reason=goal.rejection_reason,
+        reviewed_at=goal.reviewed_at,
+        created_at=goal.created_at,
+    )
+
+
+@router.post("/{goal_id}/reject", response_model=GoalResponse)
+async def reject_goal(
+    goal_id: int,
+    body: RejectGoalRequest,
+    session: AsyncSession = Depends(get_session),
+    _user: AuthenticatedUser = Depends(set_audit_user),
+) -> GoalResponse:
+    """Clinician rejects a patient's goal with a reason."""
+    result = await session.execute(select(Goal).where(Goal.id == goal_id))
+    goal = result.scalar_one_or_none()
+    if goal is None:
+        raise HTTPException(status_code=404, detail="Goal not found")
+
+    goal.clinician_rejected = True
+    goal.rejection_reason = body.reason
+    goal.reviewed_at = datetime.now(timezone.utc)
+    goal.confirmed = False  # Reset so patient can set a new goal
+    session.add(goal)
+    await session.commit()
+    await session.refresh(goal)
+
+    return GoalResponse(
+        id=goal.id,
+        patient_id=goal.patient_id,
+        raw_text=goal.raw_text,
+        structured_goal=goal.structured_goal,
+        confirmed=goal.confirmed,
+        clinician_approved=goal.clinician_approved,
+        clinician_rejected=goal.clinician_rejected,
+        rejection_reason=goal.rejection_reason,
+        reviewed_at=goal.reviewed_at,
         created_at=goal.created_at,
     )

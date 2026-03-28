@@ -522,6 +522,10 @@ class GoalResponse(BaseModel):
     raw_text: str
     structured_goal: dict | None = None
     confirmed: bool
+    clinician_approved: bool = False
+    clinician_rejected: bool = False
+    rejection_reason: str | None = None
+    reviewed_at: datetime | None = None
     created_at: datetime
 
 
@@ -551,6 +555,10 @@ async def get_goals(
             raw_text=g.raw_text,
             structured_goal=g.structured_goal,
             confirmed=g.confirmed,
+            clinician_approved=g.clinician_approved,
+            clinician_rejected=g.clinician_rejected,
+            rejection_reason=g.rejection_reason,
+            reviewed_at=g.reviewed_at,
             created_at=g.created_at,
         )
         for g in goals
