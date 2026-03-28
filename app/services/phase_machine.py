@@ -117,13 +117,14 @@ class PhaseStateMachine:
                 select(Goal).where(
                     Goal.patient_id == patient.id,
                     Goal.confirmed == True,  # noqa: E712
+                    Goal.clinician_approved == True,  # noqa: E712
                 )
             )
-            confirmed_goal = result.scalar_one_or_none()
-            if confirmed_goal is None:
+            approved_goal = result.scalar_one_or_none()
+            if approved_goal is None:
                 raise TransitionError(
                     patient.id,
-                    f"Patient {patient.id} has no confirmed goal",
+                    f"Patient {patient.id} has no confirmed and clinician-approved goal",
                     from_phase=from_phase,
                     to_phase=target_phase,
                 )
