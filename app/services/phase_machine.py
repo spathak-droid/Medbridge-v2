@@ -12,7 +12,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.enums import PatientPhase
-from app.models.goal import Goal
 from app.models.patient import Patient
 
 
@@ -37,6 +36,7 @@ class TransitionError(Exception):
 # Valid transitions: {(from, to)}
 VALID_TRANSITIONS: set[tuple[PatientPhase, PatientPhase]] = {
     (PatientPhase.PENDING, PatientPhase.ONBOARDING),
+    (PatientPhase.PENDING, PatientPhase.ACTIVE),
     (PatientPhase.ONBOARDING, PatientPhase.ACTIVE),
     (PatientPhase.ACTIVE, PatientPhase.DORMANT),
     (PatientPhase.DORMANT, PatientPhase.RE_ENGAGING),
@@ -112,22 +112,18 @@ class PhaseStateMachine:
                     to_phase=target_phase,
                 )
 
-        elif from_phase == PatientPhase.ONBOARDING and target_phase == PatientPhase.ACTIVE:
-            result = await self._session.execute(
-                select(Goal).where(
-                    Goal.patient_id == patient.id,
-                    Goal.confirmed == True,  # noqa: E712
-                    Goal.clinician_approved == True,  # noqa: E712
-                )
-            )
-            approved_goal = result.scalar_one_or_none()
-            if approved_goal is None:
+        elif from_phase == PatientPhase.PENDING and target_phase == PatientPhase.ACTIVE:
+            if not patient.consent_given:
                 raise TransitionError(
                     patient.id,
-                    f"Patient {patient.id} has no confirmed and clinician-approved goal",
+                    f"Patient {patient.id} has not given consent",
                     from_phase=from_phase,
                     to_phase=target_phase,
                 )
+
+        elif from_phase == PatientPhase.ONBOARDING and target_phase == PatientPhase.ACTIVE:
+            # No longer requires a confirmed+approved goal — just allow the transition
+            pass
 
         elif from_phase == PatientPhase.ACTIVE and target_phase == PatientPhase.DORMANT:
             if patient.unanswered_count < 3:

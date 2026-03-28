@@ -1,8 +1,8 @@
 """Re-engagement phase conversation subgraph — TICKET-013.
 
 Handles warm re-engagement when a dormant patient returns. The coach
-acknowledges the patient's return, references their previous goal,
-and invites them to resume or set a new goal. Upon successful
+acknowledges the patient's return, references their program,
+and encourages them to resume their exercises. Upon successful
 re-engagement the patient transitions to ACTIVE.
 
 Design:
@@ -10,7 +10,6 @@ Design:
 - generate_fn is an injectable LLM abstraction that handles tool calling
 - Safety pipeline wraps every generated response (retry + fallback)
 - System prompt includes previous goal and re-engagement framing
-- Two paths: resume previous goal or set new goal via set_goal tool
 """
 
 from __future__ import annotations
@@ -33,11 +32,13 @@ RE_ENGAGING_SYSTEM_PROMPT = (
     "Patient's previous goal: {goal}\n\n"
     "Guidelines:\n"
     "- Provide a warm welcome-back message acknowledging the patient's return\n"
-    "- Reference their previous goal and ask if they'd like to resume it "
-    "or set a new goal\n"
-    "- If the patient wants to resume their previous goal, confirm and "
-    "encourage them\n"
-    "- If the patient wants a new goal, use the set_goal tool to record it\n"
+    "- Reference their program and previous goal, encourage them to resume\n"
+    "- Use get_program_summary to remind them of their exercises if helpful\n"
+    "- IMPORTANT: Goals and exercise programs are managed by clinicians only. "
+    "If the patient asks to change their goal, switch programs, or modify their "
+    "exercises, politely explain that these are managed by their clinician. "
+    "Encourage them to message their care team directly using the Messages section "
+    "to discuss any changes.\n"
     "- Never provide clinical advice, diagnoses, or medication recommendations\n"
     "- Redirect clinical questions to the patient's care team"
 ) + MI_OARS_GUIDELINES + RE_ENGAGING_MI_TIPS

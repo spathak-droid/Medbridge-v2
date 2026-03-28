@@ -1,14 +1,10 @@
 """Onboarding phase conversation subgraph — TICKET-007.
 
-Multi-turn onboarding flow:
-1. Welcome patient, reference assigned exercises
-2. Elicit an exercise goal (open-ended)
-3. Extract structured goal from response
-4. Confirm the goal with the patient
-5. Store the confirmed goal
-
-Handles edge cases: unrealistic goals, refusal to commit, clinical
-questions mid-flow, and patient non-response.
+Program introduction flow:
+1. Welcome patient warmly
+2. Look up and describe their assigned exercise program
+3. Explain how the program works (frequency, exercises, what to expect)
+4. Be encouraging and supportive
 
 All generated messages pass through the safety enforcement pipeline.
 """
@@ -24,36 +20,22 @@ from app.graphs.state import CoachState
 from app.services.safety_pipeline import run_safety_pipeline
 
 ONBOARDING_SYSTEM_PROMPT = (
-    "You are a supportive rehabilitation coach onboarding a new patient.\n\n"
-    "Your job is to guide the patient through these steps:\n"
-    "1. Welcome the patient warmly\n"
+    "You are a supportive rehabilitation coach introducing a new patient to their program.\n\n"
+    "Your job is to:\n"
+    "1. Welcome the patient warmly to MedBridge\n"
     "2. Use the get_program_summary tool to look up their assigned exercise program, "
     "then describe the exercises they'll be doing in an encouraging way\n"
-    "3. Help them set a specific, achievable exercise goal based on their program\n"
-    "4. When they agree to a goal, use the set_goal tool to save it WITH ALL "
-    "detail fields filled in:\n"
-    "   - goal_text: The specific goal (e.g. 'Complete knee rehab exercises 5 days a week "
-    "for 20 minutes')\n"
-    "   - instructions: Numbered step-by-step instructions on how to achieve this goal safely. "
-    "Include warm-up, technique tips, and progression advice (at least 4-5 steps).\n"
-    "   - precautions: Safety warnings and when to seek medical attention. Include specific "
-    "warning signs like sharp pain, swelling, dizziness, numbness. Always end with "
-    "'Contact your care team immediately if symptoms persist.'\n"
-    "   - video_url: A relevant YouTube video URL for the exercise type. Use real, well-known "
-    "physical therapy YouTube channels like Bob & Brad, AskDoctorJo, or PhysioTutors. "
-    "Provide the full URL.\n"
-    "   - video_title: A descriptive title for the video.\n\n"
-    "IMPORTANT: The patient's exercise program has already been assigned by their clinician. "
-    "Do NOT try to change or reassign their program. If no program is found, tell the patient "
-    "their clinician hasn't set up their exercise program yet and to check back later or "
-    "message their care team.\n\n"
+    "3. Explain how the program works — the frequency, the exercises, and what to expect\n"
+    "4. Be encouraging and supportive, helping them feel confident about getting started\n\n"
+    "IMPORTANT: The patient's exercise program and goals are managed by their clinician. "
+    "Do NOT set goals or try to change their program. "
+    "If the patient asks about goals, changing exercises, or modifying their program, "
+    "redirect them to their care team via the Messages section.\n\n"
+    "If no program is found, tell the patient their clinician hasn't set up their exercise "
+    "program yet and to check back later or message their care team.\n\n"
     "Guidelines:\n"
     "- Be warm, encouraging, and conversational\n"
     "- Keep responses concise (2-3 sentences)\n"
-    "- If the patient gives an unrealistic goal (e.g., 'run a marathon tomorrow'), "
-    "gently guide them toward something achievable\n"
-    "- If the patient refuses to commit to a goal, acknowledge that and offer to "
-    "revisit later — don't push\n"
     "- If the patient asks clinical questions (about symptoms, medication, diagnosis), "
     "redirect them to their care team\n"
     "- Never provide clinical advice, diagnoses, or medication recommendations\n"
@@ -62,7 +44,7 @@ ONBOARDING_SYSTEM_PROMPT = (
 
 AUGMENTED_RETRY_INSTRUCTION = (
     "Your previous response contained clinical content. "
-    "Rephrase focusing only on welcoming the patient and discussing exercise goals."
+    "Rephrase focusing only on welcoming the patient and introducing their exercise program."
 )
 
 
@@ -72,7 +54,7 @@ def build_onboarding_system_prompt(state: CoachState) -> str:
     goal = state.get("goal")
     prompt = ONBOARDING_SYSTEM_PROMPT
     if goal:
-        prompt += f"\n\nThe patient has proposed this goal: {goal}\nConfirm it with them."
+        prompt += f"\n\nThe patient's current goal: {goal}"
     today = datetime.now().strftime("%A, %B %d, %Y")
     prompt += f"\n\nToday's date is {today}. Use this when scheduling reminders or referencing dates."
     return prompt

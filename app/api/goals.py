@@ -11,11 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_session
 from app.api.dependencies import require_consent, set_audit_user
 from app.middleware.auth import AuthenticatedUser
-from app.models.enums import PatientPhase
 from app.models.goal import Goal
 from app.models.patient import Patient
-from app.services.followup_service import schedule_followups
-from app.services.phase_machine import PhaseStateMachine
 
 logger = logging.getLogger(__name__)
 
@@ -71,21 +68,6 @@ async def confirm_goal(
     await session.commit()
     await session.refresh(goal)
 
-    # If clinician already approved → transition to ACTIVE
-    if goal.clinician_approved and patient and patient.phase == PatientPhase.ONBOARDING:
-        try:
-            machine = PhaseStateMachine(session)
-            await machine.transition(patient.id, PatientPhase.ACTIVE)
-        except Exception:
-            logger.warning("Phase transition ONBOARDING→ACTIVE failed for patient %s", patient.id)
-
-        try:
-            await schedule_followups(
-                session, patient.id, onboarding_completed_at=datetime.now(timezone.utc),
-            )
-        except Exception:
-            logger.exception("Failed to schedule follow-ups for patient %s", patient.id)
-
     return GoalResponse(
         id=goal.id,
         patient_id=goal.patient_id,
@@ -121,26 +103,6 @@ async def approve_goal(
     session.add(goal)
     await session.commit()
     await session.refresh(goal)
-
-    # If both patient confirmed AND clinician approved → transition to ACTIVE
-    if goal.confirmed:
-        patient_result = await session.execute(
-            select(Patient).where(Patient.id == goal.patient_id)
-        )
-        patient = patient_result.scalar_one_or_none()
-        if patient and patient.phase == PatientPhase.ONBOARDING:
-            try:
-                machine = PhaseStateMachine(session)
-                await machine.transition(patient.id, PatientPhase.ACTIVE)
-            except Exception:
-                logger.warning("Phase transition ONBOARDING→ACTIVE failed for patient %s", patient.id)
-
-            try:
-                await schedule_followups(
-                    session, patient.id, onboarding_completed_at=datetime.now(timezone.utc),
-                )
-            except Exception:
-                logger.exception("Failed to schedule follow-ups for patient %s", patient.id)
 
     return GoalResponse(
         id=goal.id,

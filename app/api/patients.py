@@ -15,7 +15,7 @@ from app.data.programs import PROGRAMS, get_program_for_patient
 from app.middleware.auth import AuthenticatedUser, require_clinician
 from app.models.clinical_note import ClinicalNote
 from app.models.conversation import Conversation
-from app.models.enums import ScheduleStatus
+from app.models.enums import PatientPhase, ScheduleStatus
 from app.models.exercise_log import ExerciseLog
 from app.models.exercise_rating import ExerciseRating
 from app.models.goal import Goal
@@ -508,6 +508,16 @@ async def update_consent(
     session.add(patient)
     await session.commit()
     await session.refresh(patient)
+
+    # Auto-transition to ACTIVE after consent if still PENDING
+    if body.consent_given and patient.consent_given:
+        if patient.phase == PatientPhase.PENDING:
+            from app.services.phase_machine import PhaseStateMachine
+            machine = PhaseStateMachine(session)
+            try:
+                await machine.transition(patient.id, PatientPhase.ACTIVE)
+            except Exception:
+                pass  # May already be transitioned
 
     return ConsentResponse(
         id=patient.id,

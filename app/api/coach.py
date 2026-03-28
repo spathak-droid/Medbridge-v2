@@ -170,18 +170,27 @@ async def start_onboarding(
     # Consent gate — verified on every interaction
     await _verify_consent(patient)
 
-    # Transition to ONBOARDING via state machine
+    # Transition to ACTIVE via state machine (consent auto-transitions, but handle edge cases)
     machine = PhaseStateMachine(session)
-    try:
-        await machine.transition(patient.id, PatientPhase.ONBOARDING)
-    except Exception:
-        # Already in ONBOARDING or later phase — allow re-entry
-        pass
+    if patient.phase == PatientPhase.PENDING:
+        try:
+            await machine.transition(patient.id, PatientPhase.ACTIVE)
+        except Exception:
+            # Fallback: try ONBOARDING for backward compatibility
+            try:
+                await machine.transition(patient.id, PatientPhase.ONBOARDING)
+            except Exception:
+                pass  # Already transitioned
+    elif patient.phase == PatientPhase.ONBOARDING:
+        try:
+            await machine.transition(patient.id, PatientPhase.ACTIVE)
+        except Exception:
+            pass  # Already in ACTIVE or later phase
 
     # Create conversation
     conversation = Conversation(
         patient_id=patient.id,
-        phase_at_creation=PatientPhase.ONBOARDING,
+        phase_at_creation=patient.phase,
     )
     session.add(conversation)
     await session.commit()
@@ -201,9 +210,8 @@ async def start_onboarding(
             role=MessageRole.COACH,
             content=(
                 "Welcome to MedBridge! I'm your exercise coach. "
-                "I'll help you set goals and build a plan that works for you. "
-                "To get started, could you tell me a bit about your current "
-                "activity level and what you'd like to achieve?"
+                "I'm here to help you stay on track with your exercise program. "
+                "Let me look up your assigned exercises so we can get started!"
             ),
             safety_status=SafetyStatus.PASSED,
             created_at=datetime.now(timezone.utc),

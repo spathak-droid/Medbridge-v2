@@ -135,13 +135,8 @@ async def run_coach_turn(
     if user_message_content:
         messages.append({"role": "patient", "content": user_message_content})
 
-    # Build tools bound to this session and patient, filtered by phase
-    all_tools = make_coach_tools(session, patient_id)
-    if patient.phase == PatientPhase.ONBOARDING:
-        tools = all_tools  # Onboarding can use set_goal
-    else:
-        # Active/re-engaging: no goal setting
-        tools = [t for t in all_tools if t.name != "set_goal"]
+    # Build tools bound to this session and patient
+    tools = make_coach_tools(session, patient_id)
 
     # Build alert function
     from app.models.alert import Alert
@@ -267,12 +262,8 @@ async def run_coach_turn_stream(
         "metadata": {},
     }
 
-    # Build tools bound to this session and patient, filtered by phase
-    all_tools = make_coach_tools(session, patient_id)
-    if patient.phase == PatientPhase.ONBOARDING:
-        tools = all_tools
-    else:
-        tools = [t for t in all_tools if t.name != "set_goal"]
+    # Build tools bound to this session and patient
+    tools = make_coach_tools(session, patient_id)
     tool_call_log: list[dict[str, Any]] = []
 
     # Build system prompt for the patient's current phase

@@ -1,7 +1,6 @@
 """Coach tools for LangGraph — TICKET-006.
 
 LangGraph-compatible tools for the coaching agent:
-- set_goal: persists a goal to the Goal model
 - set_reminder: creates a ScheduleEvent record
 - get_program_summary: returns exercise program data
 - get_adherence_summary: returns adherence stats
@@ -22,69 +21,8 @@ from app.data.adherence import get_adherence_for_patient
 from app.data.programs import get_program_for_patient
 from app.models.alert import Alert
 from app.models.enums import AlertUrgency, EventType, ScheduleStatus
-from app.models.goal import Goal
 from app.models.patient import Patient
 from app.models.schedule_event import ScheduleEvent
-
-
-import re as _re
-
-
-def _extract_structured_goal(raw_text: str) -> dict:
-    """Parse free-text goal into structured fields using pattern matching.
-
-    Extracts activity, frequency, duration, and unit where possible.
-    Falls back to storing the full text as the activity.
-    """
-    text = raw_text.lower().strip()
-
-    # Try to extract duration (e.g. "10 minutes", "30 min", "1 hour")
-    duration_match = _re.search(r"(\d+)\s*(minutes?|mins?|hours?|hrs?)", text)
-    duration = int(duration_match.group(1)) if duration_match else None
-    duration_unit = None
-    if duration_match:
-        unit = duration_match.group(2)
-        duration_unit = "minutes" if unit.startswith("min") else "hours"
-
-    # Try to extract frequency (e.g. "once a day", "3 times a week", "daily", "twice daily")
-    freq_patterns = [
-        (r"(\d+)\s*(?:times?|x)\s*(?:a|per)\s*(day|week|month)", None),
-        (r"once\s+(?:a|per)\s*(day|week|month)", "1"),
-        (r"twice\s+(?:a|per|)?\s*(day|week|month)", "2"),
-        (r"\b(daily)\b", "1"),
-        (r"\b(weekly)\b", "1"),
-    ]
-    frequency = None
-    frequency_unit = None
-    for pattern, default_count in freq_patterns:
-        freq_match = _re.search(pattern, text)
-        if freq_match:
-            groups = freq_match.groups()
-            if default_count:
-                frequency = int(default_count)
-                period = groups[0] if groups else "day"
-            else:
-                frequency = int(groups[0])
-                period = groups[1]
-            if period == "daily":
-                frequency_unit = "day"
-            elif period == "weekly":
-                frequency_unit = "week"
-            else:
-                frequency_unit = period
-            break
-
-    # Extract activity (the main verb/noun phrase)
-    # Remove frequency and duration parts to get the activity
-    activity = raw_text.strip()
-
-    return {
-        "activity": activity,
-        "duration": duration,
-        "duration_unit": duration_unit,
-        "frequency": frequency,
-        "frequency_unit": frequency_unit,
-    }
 
 
 def make_coach_tools(session: AsyncSession, patient_id: int) -> list:
@@ -95,46 +33,6 @@ def make_coach_tools(session: AsyncSession, patient_id: int) -> list:
 
     Returns a list of LangGraph-compatible BaseTool instances.
     """
-
-    @tool
-    async def set_goal(
-        goal_text: str,
-        instructions: str = "",
-        precautions: str = "",
-        video_url: str = "",
-        video_title: str = "",
-    ) -> str:
-        """Set a health or rehabilitation goal for the patient.
-
-        Use this when the patient agrees to or proposes an exercise goal.
-        Always provide detailed instructions, precautions, and a relevant video link.
-
-        Args:
-            goal_text: The goal description (e.g. "Walk 20 minutes 3 times a week").
-            instructions: Step-by-step instructions on HOW to achieve this goal safely.
-                Include specific technique tips, warm-up recommendations, and progression advice.
-                Use numbered steps. Example: "1. Start with a 5-min warm-up walk at easy pace..."
-            precautions: Safety precautions and when to seek medical attention.
-                Include warning signs to stop exercising. Example: "Stop immediately if you feel
-                sharp pain, dizziness, or shortness of breath. Contact your care team if..."
-            video_url: A relevant YouTube video URL demonstrating the exercise or technique.
-                Use well-known physical therapy channels. Example: "https://www.youtube.com/watch?v=..."
-            video_title: Title/description of the video. Example: "Proper Walking Form for Rehab - Bob & Brad"
-        """
-        structured = _extract_structured_goal(goal_text)
-        structured["instructions"] = instructions
-        structured["precautions"] = precautions
-        if video_url:
-            structured["video_url"] = video_url
-            structured["video_title"] = video_title or "Exercise Guide Video"
-        goal = Goal(
-            patient_id=patient_id,
-            raw_text=goal_text,
-            structured_goal=structured,
-        )
-        session.add(goal)
-        await session.commit()
-        return f"Goal saved: {goal_text}"
 
     @tool
     async def set_reminder(message: str, scheduled_time: str) -> str:
@@ -215,4 +113,4 @@ def make_coach_tools(session: AsyncSession, patient_id: int) -> list:
         await session.commit()
         return f"Clinician alerted (urgency={urgency}): {reason}"
 
-    return [set_goal, set_reminder, get_program_summary, get_adherence_summary, alert_clinician]
+    return [set_reminder, get_program_summary, get_adherence_summary, alert_clinician]
