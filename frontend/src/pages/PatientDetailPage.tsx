@@ -2,16 +2,22 @@ import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { usePatient } from '../hooks/usePatient'
 import {
+  approveGoal,
   createReminder,
+  createPatientNote,
+  deletePatientNote,
   getAdherence,
   getAlerts,
   getGoals,
+  getPatientNotes,
   getPatients,
   getSchedule,
+  rejectGoal,
 } from '../lib/api'
 import type {
   AdherenceSummary,
   AlertItem,
+  ClinicalNote,
   Goal,
   PatientSummary,
   ScheduleEventItem,
@@ -39,6 +45,9 @@ export function PatientDetailPage() {
   const [goals, setGoals] = useState<Goal[]>([])
   const [alerts, setAlerts] = useState<AlertItem[]>([])
   const [schedule, setSchedule] = useState<ScheduleEventItem[]>([])
+  const [notes, setNotes] = useState<ClinicalNote[]>([])
+  const [noteText, setNoteText] = useState('')
+  const [savingNote, setSavingNote] = useState(false)
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<Tab>('overview')
   const [reminderMsg, setReminderMsg] = useState('')
@@ -46,6 +55,9 @@ export function PatientDetailPage() {
   const [reminderTime, setReminderTime] = useState('09:00')
   const [sendingReminder, setSendingReminder] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [rejectingGoalId, setRejectingGoalId] = useState<number | null>(null)
+  const [rejectReason, setRejectReason] = useState('')
+  const [goalActionLoading, setGoalActionLoading] = useState(false)
 
   const fetchData = () => {
     setError(null)
@@ -56,13 +68,15 @@ export function PatientDetailPage() {
       getGoals(patientId),
       getAlerts(),
       getSchedule(patientId),
+      getPatientNotes(patientId).catch(() => []),
     ])
-      .then(([patients, adh, g, allAlerts, sched]) => {
+      .then(([patients, adh, g, allAlerts, sched, n]) => {
         setPatient(patients.find(p => p.id === patientId) ?? null)
         setAdherence(adh)
         setGoals(g)
         setAlerts(allAlerts.filter(a => a.patient_id === patientId))
         setSchedule(sched)
+        setNotes(n)
       })
       .catch((err) => setError(err.message || 'Failed to load patient data'))
       .finally(() => setLoading(false))
@@ -153,20 +167,6 @@ export function PatientDetailPage() {
                 bg-primary-600 hover:bg-primary-700
                 text-white rounded-lg text-sm font-semibold
                 transition-all cursor-pointer shadow-sm
-              "
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z" />
-              </svg>
-              Start Video Call
-            </button>
-            <button
-              onClick={() => setActiveTab('messages')}
-              className="
-                flex items-center gap-2 px-4 py-2.5
-                bg-white border border-neutral-300 hover:bg-neutral-50
-                text-neutral-700 rounded-lg text-sm font-semibold
-                transition-all cursor-pointer
               "
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
@@ -385,21 +385,111 @@ export function PatientDetailPage() {
             {goals.length > 0 && (
               <div className="card p-5">
                 <h3 className="text-sm font-bold text-neutral-800 mb-3">Patient Goals</h3>
-                <div className="space-y-2.5">
+                <div className="space-y-3">
                   {goals.map(g => (
-                    <div key={g.id} className="flex items-start gap-2">
-                      <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${
-                        g.confirmed ? 'bg-primary-100 text-primary-600' : 'bg-neutral-100 text-neutral-400'
-                      }`}>
-                        {g.confirmed ? (
-                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                          </svg>
-                        ) : (
-                          <div className="w-1.5 h-1.5 rounded-full bg-neutral-300" />
-                        )}
+                    <div key={g.id} className="border border-neutral-100 rounded-xl p-3">
+                      <div className="flex items-start gap-2 mb-1">
+                        <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${
+                          g.clinician_approved ? 'bg-green-100 text-green-600'
+                            : g.clinician_rejected ? 'bg-red-100 text-red-600'
+                            : g.confirmed ? 'bg-amber-100 text-amber-600'
+                            : 'bg-neutral-100 text-neutral-400'
+                        }`}>
+                          {g.clinician_approved ? (
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                            </svg>
+                          ) : g.clinician_rejected ? (
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          ) : (
+                            <div className="w-1.5 h-1.5 rounded-full bg-current" />
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm text-neutral-600">{g.raw_text}</p>
+                          {g.clinician_approved && (
+                            <span className="text-[10px] font-medium text-green-600 mt-1 inline-block">Approved</span>
+                          )}
+                          {g.clinician_rejected && (
+                            <div className="mt-1">
+                              <span className="text-[10px] font-medium text-red-600">Rejected</span>
+                              {g.rejection_reason && (
+                                <p className="text-[11px] text-red-500 mt-0.5">Reason: {g.rejection_reason}</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      <p className="text-sm text-neutral-600">{g.raw_text}</p>
+
+                      {g.confirmed && !g.clinician_approved && !g.clinician_rejected && (
+                        <div className="mt-2 pt-2 border-t border-neutral-100">
+                          <div className="flex items-center gap-1.5 mb-2">
+                            <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                            <span className="text-[11px] font-medium text-amber-600">Pending your review</span>
+                          </div>
+                          {rejectingGoalId === g.id ? (
+                            <div className="space-y-2">
+                              <input
+                                type="text"
+                                value={rejectReason}
+                                onChange={(e) => setRejectReason(e.target.value)}
+                                placeholder="Reason for rejection..."
+                                className="w-full px-3 py-1.5 border border-neutral-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-primary-500"
+                              />
+                              <div className="flex gap-2">
+                                <button
+                                  disabled={goalActionLoading || !rejectReason.trim()}
+                                  onClick={async () => {
+                                    setGoalActionLoading(true)
+                                    try {
+                                      await rejectGoal(g.id, rejectReason)
+                                      setRejectingGoalId(null)
+                                      setRejectReason('')
+                                      getGoals(patientId).then(setGoals).catch(() => {})
+                                    } catch {}
+                                    setGoalActionLoading(false)
+                                  }}
+                                  className="flex-1 py-1.5 bg-red-500 hover:bg-red-600 text-white text-xs font-medium rounded-lg transition disabled:opacity-50 cursor-pointer"
+                                >
+                                  Confirm Reject
+                                </button>
+                                <button
+                                  onClick={() => { setRejectingGoalId(null); setRejectReason('') }}
+                                  className="py-1.5 px-3 text-neutral-500 text-xs font-medium hover:bg-neutral-50 rounded-lg transition cursor-pointer"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex gap-2">
+                              <button
+                                disabled={goalActionLoading}
+                                onClick={async () => {
+                                  setGoalActionLoading(true)
+                                  try {
+                                    await approveGoal(g.id)
+                                    getGoals(patientId).then(setGoals).catch(() => {})
+                                  } catch {}
+                                  setGoalActionLoading(false)
+                                }}
+                                className="flex-1 py-1.5 bg-green-500 hover:bg-green-600 text-white text-xs font-medium rounded-lg transition disabled:opacity-50 cursor-pointer"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                disabled={goalActionLoading}
+                                onClick={() => setRejectingGoalId(g.id)}
+                                className="flex-1 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-medium rounded-lg transition disabled:opacity-50 cursor-pointer"
+                              >
+                                Reject
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -451,8 +541,70 @@ export function PatientDetailPage() {
 
       {activeTab === 'notes' && (
         <div className="card p-5">
-          <h3 className="text-sm font-semibold text-neutral-700 mb-3">Clinical Notes</h3>
-          <p className="text-sm text-neutral-400">No notes yet for this patient.</p>
+          <h3 className="text-sm font-semibold text-neutral-700 mb-4">Clinical Notes</h3>
+
+          {/* Add note form */}
+          <div className="mb-6">
+            <textarea
+              value={noteText}
+              onChange={(e) => setNoteText(e.target.value)}
+              placeholder="Write a clinical note..."
+              rows={3}
+              className="w-full px-3 py-2 border border-neutral-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
+            />
+            <button
+              onClick={async () => {
+                if (!noteText.trim()) return
+                setSavingNote(true)
+                try {
+                  const newNote = await createPatientNote(patientId, noteText.trim())
+                  setNotes((prev) => [newNote, ...prev])
+                  setNoteText('')
+                } catch (err) {
+                  console.error('Failed to save note:', err)
+                }
+                setSavingNote(false)
+              }}
+              disabled={savingNote || !noteText.trim()}
+              className="mt-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-sm font-medium transition disabled:opacity-50 cursor-pointer"
+            >
+              {savingNote ? 'Saving...' : 'Add Note'}
+            </button>
+          </div>
+
+          {/* Notes list */}
+          {notes.length === 0 ? (
+            <p className="text-sm text-neutral-400">No notes yet for this patient.</p>
+          ) : (
+            <div className="space-y-3">
+              {notes.map((note) => (
+                <div key={note.id} className="border border-neutral-100 rounded-lg p-4 bg-neutral-50">
+                  <p className="text-sm text-neutral-700 whitespace-pre-wrap">{note.content}</p>
+                  <div className="flex items-center justify-between mt-3">
+                    <span className="text-[11px] text-neutral-400">
+                      {new Date(note.created_at).toLocaleDateString('en-US', {
+                        month: 'short', day: 'numeric', year: 'numeric',
+                        hour: 'numeric', minute: '2-digit',
+                      })}
+                    </span>
+                    <button
+                      onClick={async () => {
+                        try {
+                          await deletePatientNote(patientId, note.id)
+                          setNotes((prev) => prev.filter((n) => n.id !== note.id))
+                        } catch (err) {
+                          console.error('Failed to delete note:', err)
+                        }
+                      }}
+                      className="text-xs text-red-400 hover:text-red-600 transition cursor-pointer"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
