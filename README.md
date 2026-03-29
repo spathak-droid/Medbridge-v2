@@ -1,5 +1,9 @@
 # CareArc — AI-Powered Physical Therapy Companion
 
+> **Live Demo:** [https://frontend-production-943a.up.railway.app](https://frontend-production-943a.up.railway.app/landing)
+>
+> Click **"Try Demo as Patient"** or **"Try Demo as Clinician"** on the login page to explore.
+
 CareArc is a full-stack web application that pairs physical therapy patients with an AI coaching assistant. It combines a conversational rehab coach (powered by LLMs via LangGraph) with a clinician dashboard for monitoring patient engagement, adherence, and outcomes — all built with HIPAA-compliant guardrails.
 
 ## Screenshots
