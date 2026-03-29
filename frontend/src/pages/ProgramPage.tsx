@@ -1,12 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePatient } from '../hooks/usePatient'
+import { useAuth } from '../contexts/AuthContext'
 import {
   clearProgram,
   getAdherence,
   getExercisesToday,
   getProgram,
+  getRatedExercises,
+  getVideoProgress,
   logExercise,
+  logVideoProgress,
+  rateExercises,
   unlogExercise,
 } from '../lib/api'
 import type { AdherenceSummary, ProgramSummary } from '../lib/types'
@@ -20,6 +25,7 @@ function todayString() {
 
 export function ProgramPage() {
   const { patientId } = usePatient()
+  const { user } = useAuth()
   const navigate = useNavigate()
   const [program, setProgram] = useState<ProgramSummary | null>(null)
   const [adherence, setAdherence] = useState<AdherenceSummary | null>(null)
@@ -29,6 +35,11 @@ export function ProgramPage() {
   const [error, setError] = useState<string | null>(null)
   const [clearing, setClearing] = useState(false)
   const [showConfetti, setShowConfetti] = useState(false)
+  const [showRateUs, setShowRateUs] = useState(false)
+  const [rateUsRating, setRateUsRating] = useState(0)
+  const [rateUsSubmitted, setRateUsSubmitted] = useState(false)
+  const [ratedFingerprints, setRatedFingerprints] = useState<Set<string>>(new Set())
+  const [videoProgress, setVideoProgress] = useState<Record<string, { watch_percentage: number; is_watched: boolean }>>({})
   const prevAllDoneRef = useRef(false)
 
   // Confetti hook — must be before any early returns
@@ -37,15 +48,53 @@ export function ProgramPage() {
   const doneEx = completedToday.filter((id) => programIds.includes(id)).length
   const isAllDone = doneEx === totalEx && totalEx > 0
 
+  // Build a stable key from sorted exercise IDs for "rate us" tracking
+  const exerciseFingerprint = programIds.slice().sort().join(',')
+
+  // Fetch already-rated fingerprints from the backend on mount
+  useEffect(() => {
+    if (!patientId) return
+    getRatedExercises(patientId)
+      .then((fps) => setRatedFingerprints(new Set(fps)))
+      .catch(() => {})
+  }, [patientId])
+
   useEffect(() => {
     if (isAllDone && !prevAllDoneRef.current) {
       setShowConfetti(true)
       const timer = setTimeout(() => setShowConfetti(false), 3500)
       prevAllDoneRef.current = true
+
+      // Show "Rate Us" popup after a short delay, only if not already rated for this exercise set
+      if (exerciseFingerprint && !ratedFingerprints.has(exerciseFingerprint)) {
+        const rateTimer = setTimeout(() => setShowRateUs(true), 1800)
+        return () => { clearTimeout(timer); clearTimeout(rateTimer) }
+      }
+
       return () => clearTimeout(timer)
     }
     prevAllDoneRef.current = isAllDone
-  }, [isAllDone])
+  }, [isAllDone, exerciseFingerprint, ratedFingerprints])
+
+  const handleRateUsDismiss = () => {
+    setShowRateUs(false)
+    // Mark as rated locally so it won't show again this session
+    setRatedFingerprints((prev) => new Set(prev).add(exerciseFingerprint))
+  }
+
+  const handleRateUsSubmit = () => {
+    setRateUsSubmitted(true)
+    setRatedFingerprints((prev) => new Set(prev).add(exerciseFingerprint))
+    // Persist to DB
+    if (patientId && exerciseFingerprint) {
+      rateExercises(patientId, exerciseFingerprint, rateUsRating).catch(() => {})
+    }
+    setTimeout(() => {
+      setShowRateUs(false)
+      setRateUsSubmitted(false)
+      setRateUsRating(0)
+    }, 1500)
+  }
 
   useEffect(() => {
     if (!patientId) return
@@ -55,11 +104,13 @@ export function ProgramPage() {
       getProgram(patientId),
       getAdherence(patientId),
       getExercisesToday(patientId),
+      getVideoProgress(patientId),
     ])
-      .then(([prog, adh, today]) => {
+      .then(([prog, adh, today, vidProgress]) => {
         setProgram(prog)
         setAdherence(adh)
         setCompletedToday(today.completed_exercise_ids)
+        setVideoProgress(vidProgress.video_progress)
       })
       .catch((err) => setError(err.message || 'Failed to load program'))
       .finally(() => setLoading(false))
@@ -84,6 +135,25 @@ export function ProgramPage() {
       // Silently fail
     } finally {
       setLoggingExercise(null)
+    }
+  }
+
+  const handleVideoProgress = async (exerciseId: string, percentage: number) => {
+    if (!patientId) return
+    const today = todayString()
+    try {
+      const result = await logVideoProgress(patientId, exerciseId, percentage, today)
+      setVideoProgress((prev) => ({
+        ...prev,
+        [exerciseId]: {
+          watch_percentage: result.watch_percentage,
+          is_watched: result.is_watched,
+        },
+      }))
+      const adh = await getAdherence(patientId)
+      setAdherence(adh)
+    } catch {
+      // Silently fail
     }
   }
 
@@ -182,27 +252,29 @@ export function ProgramPage() {
             </svg>
             Ask AI Coach
           </button>
-          <button
-            onClick={handleClearProgram}
-            disabled={clearing}
-            className="
-              flex items-center gap-1.5 px-3 py-1.5
-              text-xs font-medium text-neutral-500
-              hover:text-red-600 hover:bg-red-50
-              rounded-lg border border-neutral-200
-              transition-colors
-            "
-            title="Clear current program"
-          >
-            {clearing ? (
-              <span className="animate-spin">↻</span>
-            ) : (
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            )}
-            Clear
-          </button>
+          {user?.role === 'clinician' && (
+            <button
+              onClick={handleClearProgram}
+              disabled={clearing}
+              className="
+                flex items-center gap-1.5 px-3 py-1.5
+                text-xs font-medium text-neutral-500
+                hover:text-red-600 hover:bg-red-50
+                rounded-lg border border-neutral-200
+                transition-colors
+              "
+              title="Clear current program"
+            >
+              {clearing ? (
+                <span className="animate-spin">↻</span>
+              ) : (
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              )}
+              Clear
+            </button>
+          )}
         </div>
       </div>
 
@@ -254,6 +326,16 @@ export function ProgramPage() {
             style={{ width: `${totalExercises > 0 ? (doneCount / totalExercises) * 100 : 0}%` }}
           />
         </div>
+        {program && (
+          <div className="flex items-center gap-3 mt-2">
+            <span className="text-[11px] text-neutral-400">
+              Videos: {program.exercises.filter((ex) => videoProgress[ex.id]?.is_watched).length}/{program.exercises.filter((ex) => ex.video_id).length} watched
+            </span>
+            <span className="text-[11px] text-neutral-400">
+              Exercises: {doneCount}/{totalExercises} completed
+            </span>
+          </div>
+        )}
         {allDone && (
           <p className="text-xs text-success-600 mt-2 font-medium">
             Great job! You've completed all exercises for today.
@@ -270,6 +352,7 @@ export function ProgramPage() {
       <div className="space-y-3">
         {program.exercises.map((ex) => {
           const exAdh = adherence?.per_exercise?.[ex.id]
+          const vidProg = videoProgress[ex.id]
           return (
             <ExerciseCard
               key={ex.id}
@@ -278,10 +361,75 @@ export function ProgramPage() {
               isCompletedToday={completedToday.includes(ex.id)}
               onToggleComplete={handleToggle}
               isLogging={loggingExercise === ex.id}
+              videoWatchPct={vidProg?.watch_percentage ?? 0}
+              isVideoWatched={vidProg?.is_watched ?? false}
+              onVideoProgress={handleVideoProgress}
             />
           )
         })}
       </div>
+
+      {/* Rate Us Modal */}
+      {showRateUs && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={handleRateUsDismiss} />
+          <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 text-center animate-fade-in-up">
+            {rateUsSubmitted ? (
+              <>
+                <div className="text-5xl mb-3">&#10024;</div>
+                <h3 className="text-lg font-bold text-neutral-800">Thank you!</h3>
+                <p className="text-sm text-neutral-500 mt-1">Your feedback means a lot.</p>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={handleRateUsDismiss}
+                  className="absolute top-3 right-3 text-neutral-400 hover:text-neutral-600 transition cursor-pointer"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+                <div className="text-5xl mb-3">&#127881;</div>
+                <h3 className="text-lg font-bold text-neutral-800 mb-1">Amazing work!</h3>
+                <p className="text-sm text-neutral-500 mb-5">You crushed your exercises. How's your experience so far?</p>
+                <div className="flex justify-center gap-2 mb-5">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      onClick={() => setRateUsRating(star)}
+                      className="transition-transform hover:scale-110 cursor-pointer"
+                    >
+                      <svg
+                        className={`w-9 h-9 transition-colors ${
+                          star <= rateUsRating ? 'text-accent-500' : 'text-neutral-200'
+                        }`}
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                      </svg>
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={handleRateUsSubmit}
+                  disabled={rateUsRating === 0}
+                  className="btn-primary w-full py-3 text-sm disabled:opacity-40"
+                >
+                  Rate Us
+                </button>
+                <button
+                  onClick={handleRateUsDismiss}
+                  className="mt-2 text-xs text-neutral-400 hover:text-neutral-600 transition cursor-pointer"
+                >
+                  Maybe later
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
