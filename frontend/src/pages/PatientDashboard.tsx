@@ -42,7 +42,10 @@ export function PatientDashboard() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!patientId) return
+    if (!patientId) {
+      setLoading(false)
+      return
+    }
     setLoading(true)
     Promise.all([
       getAdherence(patientId).catch(() => null),
