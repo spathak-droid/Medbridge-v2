@@ -103,7 +103,7 @@ export function ChatPage({ patientId }: ChatPageProps) {
 
   // Fire TTS fetch immediately (prefetch) and queue the promise
   const enqueueTts = (text: string) => {
-    const apiBase = import.meta.env.VITE_API_URL || ''
+    const apiBase = import.meta.env.VITE_API_BASE_URL || ''
     const blobPromise = fetch(`${apiBase}/api/tts/speak`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
