@@ -18,6 +18,7 @@ from typing import Any, Callable
 
 from langgraph.graph import END, StateGraph
 
+from app.graphs.coach_personas import get_personality
 from app.graphs.mi_guidelines import MI_OARS_GUIDELINES, RE_ENGAGING_MI_TIPS
 from app.graphs.state import CoachState
 from app.services.safety_pipeline import run_safety_pipeline
@@ -26,10 +27,8 @@ from app.services.safety_pipeline import run_safety_pipeline
 # System prompt
 # ---------------------------------------------------------------------------
 
-RE_ENGAGING_SYSTEM_PROMPT = (
-    "You are a supportive rehabilitation coach welcoming back a patient who "
-    "has been away.\n\n"
-    "Patient's previous goal: {goal}\n\n"
+RE_ENGAGING_TASK_PROMPT = (
+    "\nPatient's previous goal: {goal}\n\n"
     "Guidelines:\n"
     "- Provide a warm welcome-back message acknowledging the patient's return\n"
     "- Reference their program and previous goal, encourage them to resume\n"
@@ -41,7 +40,7 @@ RE_ENGAGING_SYSTEM_PROMPT = (
     "to discuss any changes.\n"
     "- Never provide clinical advice, diagnoses, or medication recommendations\n"
     "- Redirect clinical questions to the patient's care team"
-) + MI_OARS_GUIDELINES + RE_ENGAGING_MI_TIPS
+)
 
 AUGMENTED_RETRY_INSTRUCTION = (
     "Your previous response contained clinical content. "
@@ -52,9 +51,11 @@ AUGMENTED_RETRY_INSTRUCTION = (
 def build_re_engaging_system_prompt(state: CoachState) -> str:
     """Build system prompt with patient context for the re-engaging phase."""
     from datetime import datetime
+    coach_mode = state.get("metadata", {}).get("coach_mode")
+    personality = get_personality(coach_mode)
     goal = state.get("goal") or "No previous goal"
     today = datetime.now().strftime("%A, %B %d, %Y")
-    return RE_ENGAGING_SYSTEM_PROMPT.format(goal=goal) + f"\n\nToday's date is {today}. Use this when scheduling reminders or referencing dates."
+    return personality + RE_ENGAGING_TASK_PROMPT.format(goal=goal) + MI_OARS_GUIDELINES + RE_ENGAGING_MI_TIPS + f"\n\nToday's date is {today}. Use this when scheduling reminders or referencing dates."
 
 
 # ---------------------------------------------------------------------------

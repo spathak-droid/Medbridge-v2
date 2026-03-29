@@ -21,6 +21,7 @@ from app.api.health import router as health_router
 from app.api.messaging import router as messaging_router
 from app.api.patients import router as patients_router
 from app.api.risk import router as risk_router
+from app.api.tts import router as tts_router
 from app.middleware.audit import AuditLogMiddleware, setup_audit_logging
 from app.middleware.rate_limit import RateLimitMiddleware
 from app.middleware.security_headers import SecurityHeadersMiddleware
@@ -90,6 +91,7 @@ def create_app() -> FastAPI:
     application.include_router(goals_router)
     application.include_router(analytics_router)
     application.include_router(messaging_router)
+    application.include_router(tts_router)
 
     return application
 

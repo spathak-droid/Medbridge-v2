@@ -9,13 +9,15 @@ import { LoadingSkeleton } from '../components/ui/LoadingSkeleton'
 import {
   confirmGoal,
   createNewConversation,
+  getCoachMode,
   getConversations,
   getGoals,
   sendMessage,
   sendMessageStream,
+  setCoachMode,
   startOnboarding,
 } from '../lib/api'
-import type { ChatMessage, Conversation, Goal } from '../lib/types'
+import type { ChatMessage, CoachModeOption, Conversation, Goal } from '../lib/types'
 
 interface ChatPageProps {
   patientId: number
@@ -34,8 +36,111 @@ export function ChatPage({ patientId }: ChatPageProps) {
   const [streamingContent, setStreamingContent] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
   const [showConvList, setShowConvList] = useState(false)
+  const [autoRead, setAutoRead] = useState(() => localStorage.getItem('ari-auto-read') === 'true')
+  const [coachMode, setCoachModeState] = useState('ari')
+  const [coachOptions, setCoachOptions] = useState<CoachModeOption[]>([])
+  const [showCoachPicker, setShowCoachPicker] = useState(false)
+  const [isSpeaking, setIsSpeaking] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const abortRef = useRef<AbortController | null>(null)
+
+  const toggleAutoRead = () => {
+    setAutoRead((prev) => {
+      const next = !prev
+      localStorage.setItem('ari-auto-read', String(next))
+      return next
+    })
+  }
+
+  // Auto-read coach messages via TTS using a persistent <audio> element
+  // Sends sentences to TTS as they stream in for minimal latency
+  const autoReadRef = useRef(autoRead)
+  useEffect(() => { autoReadRef.current = autoRead }, [autoRead])
+  const coachVoiceRef = useRef('aura-2-athena-en')
+  useEffect(() => {
+    const opt = coachOptions.find((o) => o.id === coachMode)
+    if (opt) coachVoiceRef.current = opt.voice
+  }, [coachMode, coachOptions])
+  const ttsAudioRef = useRef<HTMLAudioElement | null>(null)
+  // Queue of prefetched audio blob promises — fetching starts immediately,
+  // so the next chunk is ready by the time the current one finishes playing
+  const ttsQueueRef = useRef<Array<Promise<Blob | null>>>([])
+  const ttsPlayingRef = useRef(false)
+  const ttsBufferRef = useRef('')
+
+  const markDone = () => {
+    ttsPlayingRef.current = false
+    if (ttsQueueRef.current.length === 0) setIsSpeaking(false)
+    playNext()
+  }
+
+  const playNext = () => {
+    const el = ttsAudioRef.current
+    if (!el || ttsPlayingRef.current || ttsQueueRef.current.length === 0) {
+      if (ttsQueueRef.current.length === 0) setIsSpeaking(false)
+      return
+    }
+    ttsPlayingRef.current = true
+    setIsSpeaking(true)
+    const next = ttsQueueRef.current.shift()!
+    next.then((blob) => {
+      if (!blob || blob.size < 100) { markDone(); return }
+      const url = URL.createObjectURL(blob)
+      el.onended = () => { URL.revokeObjectURL(url); markDone() }
+      el.onerror = () => { URL.revokeObjectURL(url); markDone() }
+      el.src = url
+      el.play().catch(() => { URL.revokeObjectURL(url); markDone() })
+    }).catch(() => { markDone() })
+  }
+
+  const stopTts = () => {
+    ttsQueueRef.current = []
+    ttsPlayingRef.current = false
+    ttsBufferRef.current = ''
+    setIsSpeaking(false)
+    if (ttsAudioRef.current) { ttsAudioRef.current.pause(); ttsAudioRef.current.removeAttribute('src') }
+  }
+
+  // Fire TTS fetch immediately (prefetch) and queue the promise
+  const enqueueTts = (text: string) => {
+    const apiBase = import.meta.env.VITE_API_URL || ''
+    const blobPromise = fetch(`${apiBase}/api/tts/speak`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, voice: coachVoiceRef.current }),
+    }).then((r) => r.ok ? r.blob() : null).catch(() => null)
+    ttsQueueRef.current.push(blobPromise)
+    playNext()
+  }
+
+  // Called per streaming token — queues sentences as they complete
+  const onTtsToken = (token: string) => {
+    if (!autoReadRef.current) return
+    ttsBufferRef.current += token
+    // Wait for a sentence boundary (. ! ?) followed by space, and at least 40 chars
+    if (ttsBufferRef.current.length < 40) return
+    const m = ttsBufferRef.current.match(/^(.+[.!?])\s+(.*)$/s)
+    if (m) {
+      const sentence = m[1].trim()
+      ttsBufferRef.current = m[2]
+      if (sentence.length > 5) enqueueTts(sentence)
+    }
+  }
+
+  // Flush remaining buffer when streaming ends
+  const flushTtsBuffer = () => {
+    if (!autoReadRef.current) return
+    const rest = ttsBufferRef.current.trim()
+    ttsBufferRef.current = ''
+    if (rest.length > 5) enqueueTts(rest)
+  }
+
+  // For non-streaming: speak full text as one chunk
+  const speakText = (text: string) => {
+    if (!autoReadRef.current) return
+    stopTts()
+    enqueueTts(text)
+  }
 
   useEffect(() => {
     setLoading(true)
@@ -45,6 +150,13 @@ export function ChatPage({ patientId }: ChatPageProps) {
     setGoalsMap(new Map())
     setConversations([])
     setActiveConvId(null)
+
+    getCoachMode(patientId)
+      .then((res) => {
+        setCoachModeState(res.current)
+        setCoachOptions(res.options)
+      })
+      .catch(() => {})
 
     Promise.all([
       getConversations(patientId),
@@ -92,6 +204,19 @@ export function ChatPage({ patientId }: ChatPageProps) {
       setShowConvList(false)
     }
   }
+
+  const handleCoachSwitch = async (modeId: string) => {
+    try {
+      const res = await setCoachMode(patientId, modeId)
+      setCoachModeState(res.current)
+      setCoachOptions(res.options)
+      setShowCoachPicker(false)
+    } catch (err) {
+      console.error('Failed to set coach mode:', err)
+    }
+  }
+
+  const activeCoach = coachOptions.find((o) => o.id === coachMode)
 
   const handleNewChat = async () => {
     try {
@@ -163,12 +288,15 @@ export function ChatPage({ patientId }: ChatPageProps) {
       conversation_id: activeConvId ?? undefined,
     }
 
+    stopTts()
+
     const controller = await sendMessageStream(
       req,
       (token) => {
         setIsStreaming(true)
         setSending(false)
         setStreamingContent((prev) => prev + token)
+        onTtsToken(token)
       },
       (doneMsg) => {
         setIsStreaming(false)
@@ -184,8 +312,8 @@ export function ChatPage({ patientId }: ChatPageProps) {
           return [...filtered, patientMsg, doneMsg]
         })
         setSending(false)
-        // Update the conversation in our list
         updateConvMessages(optimisticMsg, doneMsg, content)
+        flushTtsBuffer()
       },
       (safetyMsg) => {
         setIsStreaming(false)
@@ -202,6 +330,7 @@ export function ChatPage({ patientId }: ChatPageProps) {
         })
         setSending(false)
         updateConvMessages(optimisticMsg, safetyMsg, content)
+        speakText(safetyMsg.content)
       },
       async () => {
         try {
@@ -212,6 +341,7 @@ export function ChatPage({ patientId }: ChatPageProps) {
             response.coach_message,
           ])
           updateConvMessages(optimisticMsg, response.coach_message, content)
+          speakText(response.coach_message.content)
         } finally {
           setSending(false)
           setIsStreaming(false)
@@ -305,6 +435,31 @@ export function ChatPage({ patientId }: ChatPageProps) {
 
           <div className="flex-1" />
 
+          {/* Coach persona picker */}
+          <button
+            onClick={() => setShowCoachPicker(!showCoachPicker)}
+            className="flex items-center gap-1 text-xs font-medium text-neutral-500 hover:text-neutral-700 transition-colors cursor-pointer"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+            </svg>
+            {activeCoach?.name || 'Ari'}
+          </button>
+
+          {/* Auto-read toggle */}
+          <button
+            onClick={toggleAutoRead}
+            className={`flex items-center gap-1 text-xs font-medium transition-colors cursor-pointer ${
+              autoRead ? 'text-primary-600' : 'text-neutral-400 hover:text-neutral-600'
+            }`}
+            title={autoRead ? 'Auto-read on' : 'Auto-read off'}
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19.114 5.636a9 9 0 010 12.728M16.463 8.288a5.25 5.25 0 010 7.424M6.75 8.25l4.72-4.72a.75.75 0 011.28.53v15.88a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z" />
+            </svg>
+            {autoRead ? 'Voice on' : 'Voice'}
+          </button>
+
           <button
             onClick={handleNewChat}
             className="flex items-center gap-1 text-xs font-medium text-primary-600 hover:text-primary-700 transition-colors cursor-pointer"
@@ -314,6 +469,36 @@ export function ChatPage({ patientId }: ChatPageProps) {
             </svg>
             New Chat
           </button>
+        </div>
+      )}
+
+      {/* Coach persona picker dropdown */}
+      {showCoachPicker && (
+        <div className="flex-shrink-0 border-b border-neutral-200/60 bg-white px-4 py-3 animate-fade-in">
+          <p className="text-[10px] uppercase tracking-wider text-neutral-400 font-semibold mb-2">Choose your coach</p>
+          <div className="flex gap-2">
+            {coachOptions.map((opt) => (
+              <button
+                key={opt.id}
+                onClick={() => handleCoachSwitch(opt.id)}
+                className={`flex-1 px-3 py-2.5 rounded-xl text-left transition-all cursor-pointer border ${
+                  opt.id === coachMode
+                    ? 'border-primary-300 bg-primary-50 shadow-sm'
+                    : 'border-neutral-200 bg-neutral-50 hover:border-neutral-300 hover:bg-white'
+                }`}
+              >
+                <div className="flex items-center gap-2 mb-0.5">
+                  <span className={`text-sm font-semibold ${opt.id === coachMode ? 'text-primary-700' : 'text-neutral-700'}`}>
+                    {opt.name}
+                  </span>
+                  {opt.id === coachMode && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-primary-500" />
+                  )}
+                </div>
+                <p className="text-[11px] text-neutral-500 leading-tight">{opt.description}</p>
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
@@ -369,6 +554,7 @@ export function ChatPage({ patientId }: ChatPageProps) {
                 content={msg.content}
                 createdAt={msg.created_at}
                 metadata={msg.metadata}
+                coachName={activeCoach?.name}
               />
               {msg.metadata?.goal_proposed &&
                 msg.metadata.goal_text &&
@@ -400,10 +586,11 @@ export function ChatPage({ patientId }: ChatPageProps) {
               content={streamingContent}
               createdAt={new Date().toISOString()}
               isStreaming
+              coachName={activeCoach?.name}
             />
           )}
 
-          {sending && !isStreaming && <TypingIndicator />}
+          {sending && !isStreaming && <TypingIndicator coachName={activeCoach?.name} />}
 
           <div ref={messagesEndRef} />
         </div>
@@ -412,7 +599,11 @@ export function ChatPage({ patientId }: ChatPageProps) {
       <ChatInput
         onSend={handleSend}
         disabled={sending || isStreaming}
+        isSpeaking={isSpeaking}
+        onStopSpeaking={stopTts}
       />
+      {/* Hidden audio element for TTS — DOM elements get better autoplay treatment */}
+      <audio ref={ttsAudioRef} style={{ display: 'none' }} />
     </div>
   )
 }

@@ -70,10 +70,11 @@ export function ExerciseLibraryPage() {
     d === 'beginner' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
 
   return (
-    <div className="p-4 sm:p-6 animate-fade-in">
+    <div className="p-4 sm:p-6 lg:p-8 animate-fade-in overflow-x-hidden">
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4 mb-6">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-neutral-800">Exercise Library</h1>
+          <p className="text-[10px] font-bold text-primary-500 uppercase tracking-widest mb-1">Clinical Portal</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-neutral-800 tracking-tight">Exercise Library</h1>
           <p className="text-sm text-neutral-400 mt-1">
             Browse all available rehabilitation programs and exercises
           </p>
@@ -131,7 +132,7 @@ export function ExerciseLibraryPage() {
                   transition-all cursor-pointer
                   ${selectedProgram === p.program_type
                     ? 'bg-primary-600 text-white shadow-sm'
-                    : 'bg-white border border-neutral-200 text-neutral-600 hover:bg-neutral-50'
+                    : 'card text-neutral-600 hover:bg-neutral-50'
                   }
                 `}
               >

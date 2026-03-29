@@ -1,0 +1,12 @@
+{
+  "name": "CareArc",
+  "short_name": "CareArc",
+  "description": "AI-Powered Rehabilitation Coach",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f9f9ff",
+  "theme_color": "#0059a4",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}

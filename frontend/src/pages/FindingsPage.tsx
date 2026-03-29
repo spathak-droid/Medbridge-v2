@@ -443,7 +443,7 @@ export function FindingsPage() {
 
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-black text-white leading-[1.1] tracking-tight">
               Why CareArc Needs an<br />
-              <span className="bg-gradient-to-r from-primary-400 to-cyan-400 bg-clip-text text-transparent">AI Accountability Coach</span>
+              <span className="bg-gradient-to-r from-primary-400 to-blue-300 bg-clip-text text-transparent">AI Accountability Coach</span>
             </h1>
 
             <p className="text-neutral-400 text-base md:text-lg max-w-[680px] leading-relaxed mt-6">
@@ -905,7 +905,7 @@ export function FindingsPage() {
 
       {/* ─── BOTTOM CTA ─── */}
       <section className="px-5 md:px-10 py-16 md:py-20 flex flex-col items-center gap-5" style={{
-        background: 'linear-gradient(160deg, #004D40 0%, #00695C 40%, #00897B 100%)',
+        background: 'linear-gradient(160deg, #001c3a 0%, #003366 40%, #0059a4 100%)',
       }}>
         <h2 className="text-2xl md:text-3xl font-extrabold text-white text-center leading-tight">Ready to see the AI Coach in action?</h2>
         <p className="text-white/70 text-base text-center max-w-[500px]">

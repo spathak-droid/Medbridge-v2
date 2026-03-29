@@ -210,6 +210,35 @@ async def mark_read(
     return {"ok": True}
 
 
+@router.patch("/patient/{patient_id}/read-all")
+async def mark_all_read(
+    patient_id: int,
+    session: AsyncSession = Depends(get_session),
+    user: AuthenticatedUser = Depends(set_audit_user),
+) -> dict:
+    """Mark all unread messages for a patient as read."""
+    if user.role == "patient":
+        result_p = await session.execute(select(Patient).where(Patient.id == patient_id))
+        patient = result_p.scalar_one_or_none()
+        if patient is None or patient.external_id != user.uid:
+            raise HTTPException(status_code=403, detail="Access denied — not your data")
+
+    now = datetime.now(timezone.utc)
+    result = await session.execute(
+        select(DirectMessage).where(
+            DirectMessage.patient_id == patient_id,
+            DirectMessage.sender_role == "clinician",
+            DirectMessage.read_at.is_(None),
+        )
+    )
+    msgs = result.scalars().all()
+    for msg in msgs:
+        msg.read_at = now
+        session.add(msg)
+    await session.commit()
+    return {"ok": True, "marked": len(msgs)}
+
+
 @router.get("/patient/{patient_id}/unread-count", response_model=UnreadCountResponse)
 async def unread_count(
     patient_id: int,

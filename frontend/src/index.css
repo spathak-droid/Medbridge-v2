@@ -1,34 +1,34 @@
 @import "tailwindcss";
 
 @theme {
-  /* Primary - Teal/Emerald (healthcare, trust, calm) */
-  --color-primary-50: #f0fdfa;
-  --color-primary-100: #ccfbf1;
-  --color-primary-200: #99f6e4;
-  --color-primary-300: #5eead4;
-  --color-primary-400: #2dd4bf;
-  --color-primary-500: #14b8a6;
-  --color-primary-600: #0d9488;
-  --color-primary-700: #0f766e;
-  --color-primary-800: #115e59;
-  --color-primary-900: #134e4a;
+  /* Primary - Clinical Blue (trust, authority, clarity) */
+  --color-primary-50: #f0f5ff;
+  --color-primary-100: #d4e3ff;
+  --color-primary-200: #a5c8ff;
+  --color-primary-300: #7aadff;
+  --color-primary-400: #4d91f0;
+  --color-primary-500: #005fae;
+  --color-primary-600: #0059a4;
+  --color-primary-700: #004785;
+  --color-primary-800: #003366;
+  --color-primary-900: #001c3a;
 
-  /* Warm slate neutrals */
-  --color-neutral-50: #f8fafc;
-  --color-neutral-100: #f1f5f9;
-  --color-neutral-200: #e2e8f0;
-  --color-neutral-300: #cbd5e1;
-  --color-neutral-400: #94a3b8;
-  --color-neutral-500: #64748b;
-  --color-neutral-600: #475569;
-  --color-neutral-700: #334155;
-  --color-neutral-800: #1e293b;
-  --color-neutral-900: #0f172a;
+  /* Cool blue-grey neutrals */
+  --color-neutral-50: #f9f9ff;
+  --color-neutral-100: #f0f3ff;
+  --color-neutral-200: #e2e8f8;
+  --color-neutral-300: #c1c7d4;
+  --color-neutral-400: #717783;
+  --color-neutral-500: #414752;
+  --color-neutral-600: #2a313d;
+  --color-neutral-700: #1e2533;
+  --color-neutral-800: #151c27;
+  --color-neutral-900: #0d1219;
 
-  /* Amber accent for CTAs */
-  --color-accent-400: #fbbf24;
-  --color-accent-500: #f59e0b;
-  --color-accent-600: #d97706;
+  /* Teal accent for status & tertiary */
+  --color-accent-400: #5dd8e2;
+  --color-accent-500: #006269;
+  --color-accent-600: #004f54;
 
   /* Semantic colors */
   --color-success-50: #f0fdf4;
@@ -41,8 +41,8 @@
   --color-warning-500: #f59e0b;
 
   /* Typography */
-  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --font-brand: "Sora", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Nunito", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-brand: "Sora", "Nunito", ui-sans-serif, system-ui, sans-serif;
 
   /* Shadows */
   --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.06);
@@ -292,14 +292,15 @@
   transition: box-shadow 0.2s;
 }
 
+
 /* Base styles */
 body {
   margin: 0;
-  font-family: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  font-family: "Nunito", ui-sans-serif, system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: #f8fafc;
-  color: #334155;
+  background-color: #f9f9ff;
+  color: #151c27;
 }
 
 #root {
@@ -325,3 +326,4 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
+

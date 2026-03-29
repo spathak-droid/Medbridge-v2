@@ -15,14 +15,14 @@ from typing import Any, Callable
 
 from langgraph.graph import END, StateGraph
 
+from app.graphs.coach_personas import get_coach_name, get_personality
 from app.graphs.mi_guidelines import MI_OARS_GUIDELINES, ONBOARDING_MI_TIPS
 from app.graphs.state import CoachState
 from app.services.safety_pipeline import run_safety_pipeline
 
-ONBOARDING_SYSTEM_PROMPT = (
-    "You are a supportive rehabilitation coach introducing a new patient to their program.\n\n"
-    "Your job is to:\n"
-    "1. Welcome the patient warmly to MedBridge\n"
+ONBOARDING_TASK_PROMPT = (
+    "\nYour job is to:\n"
+    "1. Welcome the patient warmly to CareArc — introduce yourself by name\n"
     "2. Use the get_program_summary tool to look up their assigned exercise program, "
     "then describe the exercises they'll be doing in an encouraging way\n"
     "3. Explain how the program works — the frequency, the exercises, and what to expect\n"
@@ -34,13 +34,12 @@ ONBOARDING_SYSTEM_PROMPT = (
     "If no program is found, tell the patient their clinician hasn't set up their exercise "
     "program yet and to check back later or message their care team.\n\n"
     "Guidelines:\n"
-    "- Be warm, encouraging, and conversational\n"
     "- Keep responses concise (2-3 sentences)\n"
     "- If the patient asks clinical questions (about symptoms, medication, diagnosis), "
     "redirect them to their care team\n"
     "- Never provide clinical advice, diagnoses, or medication recommendations\n"
     "- Focus on exercise adherence and motivation, not clinical outcomes"
-) + MI_OARS_GUIDELINES + ONBOARDING_MI_TIPS
+)
 
 AUGMENTED_RETRY_INSTRUCTION = (
     "Your previous response contained clinical content. "
@@ -51,8 +50,10 @@ AUGMENTED_RETRY_INSTRUCTION = (
 def build_onboarding_system_prompt(state: CoachState) -> str:
     """Build system prompt with patient context for onboarding."""
     from datetime import datetime
+    coach_mode = state.get("metadata", {}).get("coach_mode")
+    personality = get_personality(coach_mode)
+    prompt = personality + ONBOARDING_TASK_PROMPT + MI_OARS_GUIDELINES + ONBOARDING_MI_TIPS
     goal = state.get("goal")
-    prompt = ONBOARDING_SYSTEM_PROMPT
     if goal:
         prompt += f"\n\nThe patient's current goal: {goal}"
     today = datetime.now().strftime("%A, %B %d, %Y")

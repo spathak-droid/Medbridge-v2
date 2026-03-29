@@ -20,6 +20,7 @@ from typing import Any, Callable
 
 from langgraph.graph import END, StateGraph
 
+from app.graphs.coach_personas import get_personality
 from app.graphs.mi_guidelines import ACTIVE_MI_TIPS, MI_OARS_GUIDELINES
 from app.graphs.state import CoachState
 from app.services.safety_pipeline import run_safety_pipeline
@@ -28,12 +29,9 @@ from app.services.safety_pipeline import run_safety_pipeline
 # System prompt
 # ---------------------------------------------------------------------------
 
-ACTIVE_SYSTEM_PROMPT = (
-    "You are a supportive rehabilitation coach helping a patient with their "
-    "exercise program.\n\n"
-    "Patient's confirmed goal: {goal}\n\n"
+ACTIVE_TASK_PROMPT = (
+    "\nPatient's confirmed goal: {goal}\n\n"
     "Guidelines:\n"
-    "- Provide motivational support focused on exercise progress\n"
     "- Reference the patient's goal and adherence data when relevant\n"
     "- Use available tools to look up adherence data, program details, "
     "or set reminders\n"
@@ -46,7 +44,7 @@ ACTIVE_SYSTEM_PROMPT = (
     "and what to feel. Reference the video guides in their program.\n"
     "- Never provide clinical advice, diagnoses, or medication recommendations\n"
     "- Redirect clinical questions to the patient's care team"
-) + MI_OARS_GUIDELINES + ACTIVE_MI_TIPS
+)
 
 AUGMENTED_RETRY_INSTRUCTION = (
     "Your previous response contained clinical content. "
@@ -57,9 +55,11 @@ AUGMENTED_RETRY_INSTRUCTION = (
 def build_active_system_prompt(state: CoachState) -> str:
     """Build system prompt with patient context for the active phase."""
     from datetime import datetime
+    coach_mode = state.get("metadata", {}).get("coach_mode")
+    personality = get_personality(coach_mode)
     goal = state.get("goal") or "Not yet set"
     today = datetime.now().strftime("%A, %B %d, %Y")
-    return ACTIVE_SYSTEM_PROMPT.format(goal=goal) + f"\n\nToday's date is {today}. Use this when scheduling reminders or referencing dates."
+    return personality + ACTIVE_TASK_PROMPT.format(goal=goal) + MI_OARS_GUIDELINES + ACTIVE_MI_TIPS + f"\n\nToday's date is {today}. Use this when scheduling reminders or referencing dates."
 
 
 # ---------------------------------------------------------------------------

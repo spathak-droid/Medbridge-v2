@@ -63,7 +63,7 @@ export function WelcomeState({ onStartOnboarding, loading }: WelcomeStateProps) 
         text-neutral-800
         mb-3
       ">
-        Welcome to CareArc Coach
+        Hi, I'm <span className="text-primary-500">Ari</span>
       </h2>
       <p className="
         text-neutral-500
@@ -71,8 +71,8 @@ export function WelcomeState({ onStartOnboarding, loading }: WelcomeStateProps) 
         mb-8
         leading-relaxed
       ">
-        Your personalized AI exercise coach is here to help you set meaningful
-        recovery goals and stay on track with daily check-ins.
+        I'm your AI rehab coach at CareArc. I'll help you stay on track with your
+        exercises, celebrate your wins, and keep you motivated between visits.
       </p>
 
       {/* CTA Button */}

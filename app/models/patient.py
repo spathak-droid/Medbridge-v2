@@ -21,6 +21,7 @@ class Patient(Base):
     consented_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     email: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
     program_type: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
+    coach_mode: Mapped[str] = mapped_column(String, nullable=False, default="ari")
     logged_in: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     unanswered_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     last_unanswered_message_id: Mapped[Optional[str]] = mapped_column(

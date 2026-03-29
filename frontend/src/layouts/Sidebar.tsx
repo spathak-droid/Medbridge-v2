@@ -2,14 +2,16 @@ import { useEffect, useState, useCallback } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { usePatient } from '../hooks/usePatient'
-import { getSchedule } from '../lib/api'
+import { getSchedule, getUnreadCount } from '../lib/api'
 
 const patientItems = [
-  { to: '/', label: 'Chat', icon: ChatIcon, badgeKey: null },
+  { to: '/', label: 'Dashboard', icon: DashboardIcon, badgeKey: null },
+  { to: '/chat', label: 'AI Coach', icon: ChatIcon, badgeKey: null },
   { to: '/program', label: 'My Program', icon: ProgramIcon, badgeKey: null },
-  { to: '/messages', label: 'Messages', icon: MessagesIcon, badgeKey: null },
+  { to: '/messages', label: 'Messages', icon: MessagesIcon, badgeKey: 'messages' as const },
   { to: '/reminders', label: 'Reminders', icon: ReminderIcon, badgeKey: 'reminders' as const },
   { to: '/progress', label: 'Progress', icon: ProgressIcon, badgeKey: null },
+  { to: '/settings', label: 'Settings', icon: SettingsIcon, badgeKey: null },
 ]
 
 const clinicianItems = [
@@ -25,16 +27,20 @@ export function Sidebar() {
   const { patientId } = usePatient()
   const navigate = useNavigate()
   const [upcomingCount, setUpcomingCount] = useState(0)
+  const [unreadMessages, setUnreadMessages] = useState(0)
 
   useEffect(() => {
     if (user?.role !== 'patient' || !patientId) return
-    const fetch = () => {
+    const fetchBadges = () => {
       getSchedule(patientId)
         .then((events) => setUpcomingCount(events.filter((e) => e.status === 'PENDING').length))
         .catch(() => {})
+      getUnreadCount(patientId)
+        .then((res) => setUnreadMessages(res.count))
+        .catch(() => {})
     }
-    fetch()
-    const interval = setInterval(fetch, 60000)
+    fetchBadges()
+    const interval = setInterval(fetchBadges, 30000)
     return () => clearInterval(interval)
   }, [user?.role, patientId])
 
@@ -50,49 +56,51 @@ export function Sidebar() {
       hidden lg:flex flex-col
       w-64 h-screen
       fixed left-0 top-0
-      bg-white border-r border-neutral-200/60
+      bg-neutral-600 shadow-xl
       z-40
     ">
       {/* Logo */}
-      <div className="flex items-center gap-2.5 px-5 py-5 border-b border-neutral-100">
-        <div className="
-          flex items-center justify-center
-          w-9 h-9 rounded-xl
-          bg-gradient-to-br from-primary-500 to-primary-700
-          shadow-sm
-        ">
-          <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+      <div className="px-6 py-8 flex items-center gap-2.5">
+        <div className="w-9 h-9 bg-primary-500 rounded-xl flex items-center justify-center shadow-sm">
+          <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" />
           </svg>
         </div>
-        <span className="text-lg font-bold text-neutral-800 tracking-tight" style={{ fontFamily: 'var(--font-brand)' }}>CareArc</span>
+        <div>
+          <span className="text-xl font-black text-white tracking-tight" style={{ fontFamily: 'var(--font-brand)' }}>CareArc</span>
+          <p className="text-[9px] font-medium tracking-widest text-neutral-300/60 uppercase">Clinical Portal</p>
+        </div>
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-3 py-4 space-y-1">
+      <nav className="flex-1 px-3 space-y-1">
         {user?.role === 'patient' && (
           <>
-            <p className="px-3 mb-2 text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">Patient</p>
             {patientItems.map(({ to, label, icon: Icon, badgeKey }) => (
               <NavLink
                 key={to}
                 to={to}
                 className={({ isActive }) => `
-                  flex items-center gap-3
-                  px-3 py-2.5 rounded-xl
+                  group flex items-center gap-3
+                  px-3 py-3 rounded-lg
                   text-sm font-medium
-                  transition-all duration-150
+                  transition-all duration-200
                   ${isActive
-                    ? 'bg-primary-50 text-primary-700'
-                    : 'text-neutral-500 hover:text-neutral-700 hover:bg-neutral-50'
+                    ? 'text-white bg-white/10 translate-x-1 border-l-2 border-primary-400'
+                    : 'text-neutral-300/80 hover:text-neutral-100 hover:bg-white/10'
                   }
                 `}
               >
                 <Icon className="w-[18px] h-[18px]" />
                 {label}
                 {badgeKey === 'reminders' && upcomingCount > 0 && (
-                  <span className="ml-auto px-1.5 py-0.5 rounded-full bg-amber-500 text-white text-[10px] font-bold min-w-[18px] text-center">
+                  <span className="ml-auto px-1.5 py-0.5 rounded-full bg-primary-500 text-white text-[10px] font-bold min-w-[18px] text-center">
                     {upcomingCount}
+                  </span>
+                )}
+                {badgeKey === 'messages' && unreadMessages > 0 && (
+                  <span className="ml-auto px-1.5 py-0.5 rounded-full bg-red-500 text-white text-[10px] font-bold min-w-[18px] text-center">
+                    {unreadMessages}
                   </span>
                 )}
               </NavLink>
@@ -102,19 +110,18 @@ export function Sidebar() {
 
         {user?.role === 'clinician' && (
           <>
-            <p className="px-3 mb-2 text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">Clinician</p>
             {clinicianItems.map(({ to, label, icon: Icon }) => (
               <NavLink
                 key={to}
                 to={to}
                 className={({ isActive }) => `
-                  flex items-center gap-3
-                  px-3 py-2.5 rounded-xl
+                  group flex items-center gap-3
+                  px-3 py-3 rounded-lg
                   text-sm font-medium
-                  transition-all duration-150
+                  transition-all duration-200
                   ${isActive
-                    ? 'bg-primary-50 text-primary-700'
-                    : 'text-neutral-500 hover:text-neutral-700 hover:bg-neutral-50'
+                    ? 'text-white bg-white/10 translate-x-1 border-l-2 border-primary-400'
+                    : 'text-neutral-300/80 hover:text-neutral-100 hover:bg-white/10'
                   }
                 `}
               >
@@ -128,19 +135,19 @@ export function Sidebar() {
 
       {/* User info + Sign out */}
       {user && (
-        <div className="px-3 py-4 border-t border-neutral-100">
-          <div className="flex items-center gap-3 px-3 py-2 mb-2">
-            <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 text-sm font-bold shrink-0">
+        <div className="px-6 py-6 border-t border-white/5">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-10 h-10 rounded-full bg-primary-500 flex items-center justify-center text-white text-sm font-bold shrink-0 border-2 border-primary-400">
               {(user.name || user.email || user.role).charAt(0).toUpperCase()}
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-medium text-neutral-800 truncate">{user.name || user.email || user.role}</p>
-              <p className="text-[11px] text-neutral-400 capitalize">{user.role}</p>
+              <p className="text-white text-xs font-bold truncate">{user.name || user.email || user.role}</p>
+              <p className="text-neutral-400 text-[10px] capitalize">{user.role}</p>
             </div>
           </div>
           <button
             onClick={() => setShowSignOutConfirm(true)}
-            className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-neutral-500 hover:text-red-600 hover:bg-red-50 transition-all duration-150 cursor-pointer"
+            className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium text-neutral-300/70 hover:text-red-400 hover:bg-white/5 transition-all duration-150 cursor-pointer"
           >
             <SignOutIcon className="w-[18px] h-[18px]" />
             Sign Out
@@ -153,8 +160,8 @@ export function Sidebar() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowSignOutConfirm(false)} />
           <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 text-center animate-fade-in-up">
-            <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-4">
-              <svg className="w-6 h-6 text-red-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+            <div className="w-12 h-12 rounded-full bg-primary-50 flex items-center justify-center mx-auto mb-4">
+              <svg className="w-6 h-6 text-primary-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
               </svg>
             </div>
@@ -169,7 +176,7 @@ export function Sidebar() {
               </button>
               <button
                 onClick={handleSignOut}
-                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-xl transition cursor-pointer"
+                className="flex-1 py-2.5 bg-primary-500 hover:bg-primary-600 text-white text-sm font-semibold rounded-xl transition cursor-pointer"
               >
                 Sign Out
               </button>
@@ -178,6 +185,14 @@ export function Sidebar() {
         </div>
       )}
     </aside>
+  )
+}
+
+function DashboardIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.75} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
+    </svg>
   )
 }
 

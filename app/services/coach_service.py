@@ -165,7 +165,7 @@ async def run_coach_turn(
         "goal": goal_text,
         "tool_results": [],
         "safety_status": SafetyStatus.PASSED,
-        "metadata": {},
+        "metadata": {"coach_mode": patient.coach_mode},
         "consent_verified": bool(patient.logged_in and patient.consent_given),
     }
 
@@ -259,7 +259,7 @@ async def run_coach_turn_stream(
         "messages": messages,
         "tool_results": [],
         "safety_status": SafetyStatus.PASSED,
-        "metadata": {},
+        "metadata": {"coach_mode": patient.coach_mode},
     }
 
     # Build tools bound to this session and patient

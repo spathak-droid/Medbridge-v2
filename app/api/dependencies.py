@@ -49,6 +49,10 @@ async def require_own_patient_data(
     if user.role == "clinician":
         return user
 
+    # Demo users bypass ownership check
+    if user.uid.startswith("demo-"):
+        return user
+
     result = await session.execute(select(Patient).where(Patient.id == patient_id))
     patient = result.scalar_one_or_none()
     if patient is None:

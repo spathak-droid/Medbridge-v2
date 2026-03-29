@@ -285,6 +285,28 @@ export interface ClinicalNote {
   updated_at: string
 }
 
+export interface DailyCheckin {
+  id: number
+  patient_id: number
+  date: string
+  pain_level: number
+  mood_level: number
+  notes: string | null
+  created_at: string
+}
+
+export interface CoachModeOption {
+  id: string
+  name: string
+  voice: string
+  description: string
+}
+
+export interface CoachModeResponse {
+  current: string
+  options: CoachModeOption[]
+}
+
 export interface AnalyticsV2Response {
   attention: AttentionPatient[]
   heatmap: HeatmapRow[]

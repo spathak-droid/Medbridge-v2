@@ -11,11 +11,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_session
 from app.api.dependencies import require_own_patient_data, set_audit_user
 from app.data.adherence import compute_adherence, get_adherence_for_patient
+from app.graphs.coach_personas import CoachMode, COACH_DISPLAY_NAMES, COACH_VOICES, get_voice
 from app.data.programs import PROGRAMS, get_program_for_patient
-from app.middleware.auth import AuthenticatedUser, require_clinician
+from app.middleware.auth import AuthenticatedUser, require_clinician, require_patient
 from app.models.clinical_note import ClinicalNote
 from app.models.conversation import Conversation
 from app.models.enums import PatientPhase, ScheduleStatus
+from app.models.daily_checkin import DailyCheckin
 from app.models.exercise_log import ExerciseLog
 from app.models.exercise_rating import ExerciseRating
 from app.models.video_watch_log import VideoWatchLog
@@ -1052,6 +1054,37 @@ async def get_patient_notes(
     ]
 
 
+@router.get("/{patient_id}/notes/patient-view", response_model=list[ClinicalNoteResponse])
+async def get_patient_notes_patient_view(
+    patient_id: int,
+    session: AsyncSession = Depends(get_session),
+    _user: AuthenticatedUser = Depends(require_patient),
+) -> list[ClinicalNoteResponse]:
+    """List clinical notes visible to the patient. Excludes soft-deleted notes."""
+    result = await session.execute(select(Patient).where(Patient.id == patient_id))
+    if result.scalar_one_or_none() is None:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    notes_result = await session.execute(
+        select(ClinicalNote)
+        .where(ClinicalNote.patient_id == patient_id, ClinicalNote.deleted_at.is_(None))
+        .order_by(ClinicalNote.created_at.desc())
+    )
+    notes = notes_result.scalars().all()
+
+    return [
+        ClinicalNoteResponse(
+            id=n.id,
+            patient_id=n.patient_id,
+            clinician_uid=n.clinician_uid,
+            content=n.content,
+            created_at=n.created_at,
+            updated_at=n.updated_at,
+        )
+        for n in notes
+    ]
+
+
 @router.post("/{patient_id}/notes", response_model=ClinicalNoteResponse)
 async def create_patient_note(
     patient_id: int,
@@ -1324,3 +1357,234 @@ async def get_video_engagement(
         "exercises": exercises,
         "overall_video_adherence": overall_adherence,
     }
+
+
+# ---------------------------------------------------------------------------
+# Daily Check-in
+# ---------------------------------------------------------------------------
+
+
+class DailyCheckinRequest(BaseModel):
+    pain_level: int
+    mood_level: int
+    notes: str | None = None
+
+
+class DailyCheckinResponse(BaseModel):
+    id: int
+    patient_id: int
+    date: date
+    pain_level: int
+    mood_level: int
+    notes: str | None
+    created_at: datetime
+
+
+@router.post("/{patient_id}/checkin", response_model=DailyCheckinResponse)
+async def submit_daily_checkin(
+    patient_id: int,
+    body: DailyCheckinRequest,
+    session: AsyncSession = Depends(get_session),
+    _user: AuthenticatedUser = Depends(require_own_patient_data),
+) -> DailyCheckinResponse:
+    """Submit a daily pain/mood check-in. One per patient per day (upserts)."""
+    if body.pain_level < 1 or body.pain_level > 10:
+        raise HTTPException(status_code=400, detail="pain_level must be between 1 and 10")
+    if body.mood_level < 1 or body.mood_level > 5:
+        raise HTTPException(status_code=400, detail="mood_level must be between 1 and 5")
+
+    result = await session.execute(select(Patient).where(Patient.id == patient_id))
+    patient = result.scalar_one_or_none()
+    if patient is None:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    today = date.today()
+
+    # Check for existing checkin today (upsert)
+    existing_result = await session.execute(
+        select(DailyCheckin).where(
+            DailyCheckin.patient_id == patient_id,
+            DailyCheckin.date == today,
+        )
+    )
+    existing = existing_result.scalar_one_or_none()
+
+    if existing is not None:
+        existing.pain_level = body.pain_level
+        existing.mood_level = body.mood_level
+        existing.notes = body.notes
+        session.add(existing)
+        await session.commit()
+        await session.refresh(existing)
+        checkin = existing
+    else:
+        checkin = DailyCheckin(
+            patient_id=patient_id,
+            date=today,
+            pain_level=body.pain_level,
+            mood_level=body.mood_level,
+            notes=body.notes,
+        )
+        session.add(checkin)
+        await session.commit()
+        await session.refresh(checkin)
+
+    return DailyCheckinResponse(
+        id=checkin.id,
+        patient_id=checkin.patient_id,
+        date=checkin.date,
+        pain_level=checkin.pain_level,
+        mood_level=checkin.mood_level,
+        notes=checkin.notes,
+        created_at=checkin.created_at,
+    )
+
+
+@router.get("/{patient_id}/checkins", response_model=list[DailyCheckinResponse])
+async def get_checkins(
+    patient_id: int,
+    session: AsyncSession = Depends(get_session),
+    _user: AuthenticatedUser = Depends(require_own_patient_data),
+) -> list[DailyCheckinResponse]:
+    """Return check-ins for the last 30 days."""
+    from datetime import timedelta
+
+    cutoff = date.today() - timedelta(days=30)
+    result = await session.execute(
+        select(DailyCheckin)
+        .where(
+            DailyCheckin.patient_id == patient_id,
+            DailyCheckin.date >= cutoff,
+        )
+        .order_by(DailyCheckin.date.desc())
+    )
+    checkins = result.scalars().all()
+
+    return [
+        DailyCheckinResponse(
+            id=c.id,
+            patient_id=c.patient_id,
+            date=c.date,
+            pain_level=c.pain_level,
+            mood_level=c.mood_level,
+            notes=c.notes,
+            created_at=c.created_at,
+        )
+        for c in checkins
+    ]
+
+
+@router.get("/{patient_id}/checkin/today")
+async def get_today_checkin(
+    patient_id: int,
+    session: AsyncSession = Depends(get_session),
+    _user: AuthenticatedUser = Depends(require_own_patient_data),
+) -> DailyCheckinResponse | None:
+    """Return today's check-in or null."""
+    today = date.today()
+    result = await session.execute(
+        select(DailyCheckin).where(
+            DailyCheckin.patient_id == patient_id,
+            DailyCheckin.date == today,
+        )
+    )
+    checkin = result.scalar_one_or_none()
+    if checkin is None:
+        return None
+
+    return DailyCheckinResponse(
+        id=checkin.id,
+        patient_id=checkin.patient_id,
+        date=checkin.date,
+        pain_level=checkin.pain_level,
+        mood_level=checkin.mood_level,
+        notes=checkin.notes,
+        created_at=checkin.created_at,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Coach mode (persona selection)
+# ---------------------------------------------------------------------------
+
+
+class CoachModeOption(BaseModel):
+    id: str
+    name: str
+    voice: str
+    description: str
+
+
+class CoachModeResponse(BaseModel):
+    current: str
+    options: list[CoachModeOption]
+
+
+class SetCoachModeRequest(BaseModel):
+    coach_mode: str
+
+
+COACH_DESCRIPTIONS: dict[str, str] = {
+    "ari": "Warm, empathetic, and gently encouraging",
+    "max": "High-energy, motivating, and action-focused",
+    "dr_lane": "Calm, concise, and evidence-informed",
+}
+
+
+@router.get("/{patient_id}/coach-mode")
+async def get_coach_mode(
+    patient_id: int,
+    session: AsyncSession = Depends(get_session),
+    _user: AuthenticatedUser = Depends(require_own_patient_data),
+) -> CoachModeResponse:
+    """Return current coach mode and all available options."""
+    result = await session.execute(select(Patient).where(Patient.id == patient_id))
+    patient = result.scalar_one_or_none()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    options = [
+        CoachModeOption(
+            id=mode.value,
+            name=COACH_DISPLAY_NAMES[mode],
+            voice=COACH_VOICES[mode],
+            description=COACH_DESCRIPTIONS.get(mode.value, ""),
+        )
+        for mode in CoachMode
+    ]
+
+    return CoachModeResponse(current=patient.coach_mode, options=options)
+
+
+@router.put("/{patient_id}/coach-mode")
+async def set_coach_mode(
+    patient_id: int,
+    body: SetCoachModeRequest,
+    session: AsyncSession = Depends(get_session),
+    _user: AuthenticatedUser = Depends(require_own_patient_data),
+) -> CoachModeResponse:
+    """Update the patient's coach mode."""
+    try:
+        CoachMode(body.coach_mode)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Invalid coach mode: {body.coach_mode}")
+
+    result = await session.execute(select(Patient).where(Patient.id == patient_id))
+    patient = result.scalar_one_or_none()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    patient.coach_mode = body.coach_mode
+    await session.commit()
+
+    options = [
+        CoachModeOption(
+            id=mode.value,
+            name=COACH_DISPLAY_NAMES[mode],
+            voice=COACH_VOICES[mode],
+            description=COACH_DESCRIPTIONS.get(mode.value, ""),
+        )
+        for mode in CoachMode
+    ]
+
+    return CoachModeResponse(current=patient.coach_mode, options=options)

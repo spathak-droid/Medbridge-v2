@@ -21,12 +21,11 @@ export function PatientHeader() {
         <header className="
           sticky top-0 z-30
           flex items-center justify-between
-          px-4 sm:px-6 py-3
-          bg-white/80 backdrop-blur-lg
-          border-b border-neutral-200/60
-          shadow-sm
+          px-4 sm:px-8 py-3
+          bg-white/80 backdrop-blur-md
+          shadow-[0_20px_40px_rgba(0,45,86,0.06)]
         ">
-          <span className="text-sm font-medium text-neutral-500">Clinician</span>
+          <span className="text-sm font-medium text-neutral-400">Clinician</span>
           <button
             onClick={() => setShowSwitcher(true)}
             className="
@@ -55,10 +54,9 @@ export function PatientHeader() {
       <header className="
         sticky top-0 z-30
         flex items-center justify-between
-        px-4 sm:px-6 py-3
-        bg-white/80 backdrop-blur-lg
-        border-b border-neutral-200/60
-        shadow-sm
+        px-4 sm:px-8 py-3
+        bg-white/80 backdrop-blur-md
+        shadow-[0_20px_40px_rgba(0,45,86,0.06)]
       ">
         <div className="flex items-center gap-3 min-w-0">
           {/* Avatar */}

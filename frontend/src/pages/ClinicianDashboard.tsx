@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
+import gsap from 'gsap'
 import { getAlerts, getAnalyticsV2, getPatients, getRiskScores, acknowledgeAlert, createPatient, getAvailablePrograms } from '../lib/api'
 import { useAuth } from '../contexts/AuthContext'
 import type { AlertItem, AnalyticsV2Response, PatientSummary, RiskAssessment } from '../lib/types'
@@ -64,9 +65,27 @@ export function ClinicianDashboard() {
     }
   }
 
+  // GSAP
+  const pageRef = useRef<HTMLDivElement>(null)
+  const statsRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (loading || !pageRef.current) return
+    const sections = pageRef.current.querySelectorAll('[data-animate]')
+    gsap.fromTo(sections, { opacity: 0, y: 24 }, {
+      opacity: 1, y: 0, duration: 0.5, stagger: 0.08, ease: 'power3.out',
+    })
+    if (statsRef.current) {
+      const cards = statsRef.current.querySelectorAll(':scope > *')
+      gsap.fromTo(cards, { opacity: 0, y: 20, scale: 0.96 }, {
+        opacity: 1, y: 0, scale: 1, duration: 0.4, stagger: 0.1, delay: 0.15, ease: 'power3.out',
+      })
+    }
+  }, [loading])
+
   if (loading) {
     return (
-      <div className="p-4 sm:p-6">
+      <div className="p-4 sm:p-6 lg:p-8">
         <LoadingSkeleton variant="card" count={3} />
       </div>
     )
@@ -98,19 +117,23 @@ export function ClinicianDashboard() {
     (m) => m.event_type === 'streak_milestone' || m.event_type === 'adherence_milestone' || m.event_type === 'goal_confirmed'
   )
 
-  const MILESTONE_ICONS: Record<string, { bg: string; icon: string }> = {
-    streak_milestone: { bg: 'bg-green-400', icon: 'S' },
-    adherence_milestone: { bg: 'bg-blue-400', icon: 'A' },
-    goal_confirmed: { bg: 'bg-emerald-400', icon: 'G' },
+  const MILESTONE_COLORS: Record<string, string> = {
+    streak_milestone: 'bg-amber-400',
+    adherence_milestone: 'bg-primary-400',
+    goal_confirmed: 'bg-success-500',
   }
 
   return (
-    <div className="p-4 sm:p-6 animate-fade-in">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-bold text-neutral-800">My Patients</h2>
+    <div ref={pageRef} className="p-4 sm:p-6 lg:p-8">
+      {/* Header */}
+      <div data-animate className="flex items-center justify-between mb-6">
+        <div>
+          <p className="text-[10px] font-bold text-primary-500 uppercase tracking-widest mb-1">Clinical Portal</p>
+          <h1 className="text-2xl font-bold text-neutral-800 tracking-tight">My Patients</h1>
+        </div>
         <button
           onClick={() => setShowAddPatient(true)}
-          className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium rounded-xl transition-colors flex items-center gap-2 cursor-pointer"
+          className="btn-primary px-4 py-2.5 text-sm flex items-center gap-2"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
@@ -207,7 +230,7 @@ export function ClinicianDashboard() {
       )}
 
       {/* Summary Stats Row */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 mb-6">
+      <div ref={statsRef} className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">
         <div className="card p-4 flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg bg-primary-50 flex items-center justify-center text-primary-600 flex-shrink-0">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
@@ -245,7 +268,7 @@ export function ClinicianDashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-4 sm:gap-6">
+      <div data-animate className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-6">
         {/* Patient roster */}
         <div>
           <div className="flex items-center justify-between mb-4">
@@ -270,18 +293,20 @@ export function ClinicianDashboard() {
           </div>
 
           {/* Wins & Milestones */}
-          <div className="card p-4 border-l-4 border-l-green-400">
+          <div className="card p-5 border-l-4 border-l-success-500">
             <h3 className="text-sm font-semibold text-neutral-700 mb-3">Wins & Milestones</h3>
             {wins.length === 0 ? (
               <p className="text-xs text-neutral-400">No recent wins to celebrate</p>
             ) : (
               <div className="space-y-2">
                 {wins.slice(0, 5).map((m, i) => {
-                  const cfg = MILESTONE_ICONS[m.event_type] ?? { bg: 'bg-green-400', icon: 'W' }
+                  const bg = MILESTONE_COLORS[m.event_type] ?? 'bg-success-400'
                   return (
-                    <div key={`${m.event_type}-${m.patient_id}-${i}`} className="flex items-start gap-2">
-                      <div className={`w-5 h-5 rounded-full ${cfg.bg} flex items-center justify-center flex-shrink-0 mt-0.5`}>
-                        <span className="text-white text-[9px] font-bold">{cfg.icon}</span>
+                    <div key={`${m.event_type}-${m.patient_id}-${i}`} className="flex items-start gap-2.5">
+                      <div className={`w-5 h-5 rounded-full ${bg} flex items-center justify-center flex-shrink-0 mt-0.5`}>
+                        <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                        </svg>
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="text-xs text-neutral-700 leading-snug">

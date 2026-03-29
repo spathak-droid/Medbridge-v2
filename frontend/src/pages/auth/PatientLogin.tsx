@@ -27,7 +27,7 @@ export function PatientLogin() {
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4" style={{
-      background: 'linear-gradient(160deg, #004D40 0%, #00695C 25%, #00897B 50%, #26A69A 75%, #4DB6AC 100%)',
+      background: 'linear-gradient(160deg, #001c3a 0%, #003366 25%, #004785 50%, #0059a4 75%, #005fae 100%)',
     }}>
       <div className="w-full max-w-md">
         <div className="text-center mb-8">

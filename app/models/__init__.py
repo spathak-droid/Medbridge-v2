@@ -5,6 +5,7 @@ from app.models.app_user import AppUser
 from app.models.audit_log import AuditLog
 from app.models.clinical_note import ClinicalNote
 from app.models.conversation import Conversation
+from app.models.daily_checkin import DailyCheckin
 from app.models.direct_message import DirectMessage
 from app.models.enums import (
     AlertStatus,
@@ -33,6 +34,7 @@ __all__ = [
     "AlertUrgency",
     "ClinicalNote",
     "Conversation",
+    "DailyCheckin",
     "DirectMessage",
     "EventType",
     "ExerciseLog",

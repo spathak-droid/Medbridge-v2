@@ -4,6 +4,7 @@ import { AppLayout } from './layouts/AppLayout'
 import { ConsentGate } from './components/ConsentGate'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { ChatPage } from './pages/ChatPage'
+import { PatientDashboard } from './pages/PatientDashboard'
 import { ProgramPage } from './pages/ProgramPage'
 import { ProgressPage } from './pages/ProgressPage'
 import { RemindersPage } from './pages/RemindersPage'
@@ -87,6 +88,11 @@ function App() {
       {/* Patient routes */}
       <Route element={<AppLayout />}>
         <Route path="/" element={
+          <ProtectedRoute role="patient">
+            <PatientDashboard />
+          </ProtectedRoute>
+        } />
+        <Route path="/chat" element={
           <ProtectedRoute role="patient">
             <PatientChatWrapper />
           </ProtectedRoute>

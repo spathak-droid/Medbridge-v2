@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
+import gsap from 'gsap'
 import { usePatient } from '../hooks/usePatient'
 import {
   approveGoal,
@@ -67,6 +68,7 @@ export function PatientDetailPage() {
   const [programLoading, setProgramLoading] = useState(false)
   const [availablePrograms, setAvailablePrograms] = useState<{ program_type: string; program_name: string; exercise_count: number }[]>([])
   const [videoEngagement, setVideoEngagement] = useState<VideoEngagement | null>(null)
+  const pageRef = useRef<HTMLDivElement>(null)
 
   const fetchData = () => {
     setError(null)
@@ -96,6 +98,14 @@ export function PatientDetailPage() {
     getAvailablePrograms().then(setAvailablePrograms).catch(() => {})
     getVideoEngagement(patientId).then(setVideoEngagement).catch(() => {})
   }, [patientId])
+
+  useEffect(() => {
+    if (loading || !pageRef.current) return
+    const sections = pageRef.current.querySelectorAll('[data-animate]')
+    gsap.fromTo(sections, { opacity: 0, y: 24 }, {
+      opacity: 1, y: 0, duration: 0.5, stagger: 0.08, ease: 'power3.out',
+    })
+  }, [loading, activeTab])
 
   if (loading) {
     return (
@@ -148,9 +158,10 @@ export function PatientDetailPage() {
   ]
 
   return (
-    <div className="p-4 sm:p-6 animate-fade-in">
-      {/* Page Header */}
-      <div className="mb-6">
+    <div ref={pageRef} className="p-4 sm:p-6 animate-fade-in">
+      {/* Breadcrumb Header */}
+      <div data-animate className="mb-6">
+        <p className="text-[10px] font-bold text-primary-500 uppercase tracking-widest mb-1">Clinical Portal</p>
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
             <div className="flex items-center gap-2 mb-1">
@@ -159,7 +170,7 @@ export function PatientDetailPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
                 </svg>
               </Link>
-              <h1 className="text-xl sm:text-2xl font-bold text-neutral-800">
+              <h1 className="text-xl sm:text-2xl font-bold text-neutral-800 tracking-tight">
                 Patient Detail: {patient.name}
               </h1>
             </div>
@@ -196,7 +207,7 @@ export function PatientDetailPage() {
       </div>
 
       {/* Tab Navigation */}
-      <div className="border-b border-neutral-200 mb-6">
+      <div data-animate className="border-b border-neutral-200 mb-6">
         <nav className="flex gap-6 -mb-px">
           {tabs.map(({ key, label }) => (
             <button
@@ -205,8 +216,8 @@ export function PatientDetailPage() {
               className={`
                 pb-3 text-sm font-medium border-b-2 transition-colors cursor-pointer
                 ${activeTab === key
-                  ? 'border-primary-600 text-primary-700'
-                  : 'border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300'
+                  ? 'border-primary-500 text-primary-600'
+                  : 'border-transparent text-neutral-400 hover:text-neutral-600'
                 }
               `}
             >
@@ -218,7 +229,7 @@ export function PatientDetailPage() {
 
       {/* Tab Content */}
       {activeTab === 'overview' && (
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4 sm:gap-6">
+        <div data-animate className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4 sm:gap-6">
           {/* Main Content */}
           <div className="space-y-6">
             {/* Metric Cards Row */}
@@ -613,7 +624,7 @@ export function PatientDetailPage() {
       )}
 
       {activeTab === 'program' && (
-        <div className="space-y-4">
+        <div data-animate className="space-y-4">
           <div className="card p-5">
             <ProgramCompletionView patientId={patientId} />
           </div>
@@ -674,13 +685,13 @@ export function PatientDetailPage() {
       )}
 
       {activeTab === 'messages' && (
-        <div className="card p-5">
+        <div data-animate className="card p-5">
           <ClinicianMessaging patientId={patientId} />
         </div>
       )}
 
       {activeTab === 'notes' && (
-        <div className="card p-5">
+        <div data-animate className="card p-5">
           <h3 className="text-sm font-semibold text-neutral-700 mb-4">Clinical Notes</h3>
 
           {/* Add note form */}

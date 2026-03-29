@@ -16,13 +16,13 @@ export function LandingPage() {
     <div className="min-h-screen font-sans overflow-x-hidden">
       {/* ─── HERO ─── */}
       <section className="relative overflow-hidden" style={{
-        background: 'linear-gradient(160deg, #004D40 0%, #00695C 25%, #00897B 50%, #26A69A 75%, #4DB6AC 100%)',
+        background: 'linear-gradient(160deg, #001c3a 0%, #003366 25%, #004785 50%, #0059a4 75%, #005fae 100%)',
       }}>
         {/* Decorative — hidden on mobile */}
-        <div className="hidden lg:block absolute w-[500px] h-[500px] rounded-full border border-white/15 pointer-events-none top-[10%] left-1/2 -translate-x-1/2" />
-        <div className="hidden lg:block absolute w-[360px] h-[360px] rounded-full border border-white/20 pointer-events-none top-[14%] left-1/2 -translate-x-1/2" />
-        <div className="hidden md:block absolute w-[120px] h-[120px] rounded-full pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(0,188,212,0.4) 0%, transparent 70%)', right: '10%', top: '15%' }} />
-        <div className="hidden md:block absolute w-[80px] h-[80px] rounded-full pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(38,166,154,0.35) 0%, transparent 70%)', left: '12%', bottom: '30%' }} />
+        <div className="hidden lg:block absolute w-[500px] h-[500px] rounded-full border border-white/10 pointer-events-none top-[10%] left-1/2 -translate-x-1/2" />
+        <div className="hidden lg:block absolute w-[360px] h-[360px] rounded-full border border-white/15 pointer-events-none top-[14%] left-1/2 -translate-x-1/2" />
+        <div className="hidden md:block absolute w-[120px] h-[120px] rounded-full pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(165,200,255,0.3) 0%, transparent 70%)', right: '10%', top: '15%' }} />
+        <div className="hidden md:block absolute w-[80px] h-[80px] rounded-full pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(77,145,240,0.25) 0%, transparent 70%)', left: '12%', bottom: '30%' }} />
 
         {/* Wave */}
         <svg className="absolute bottom-0 left-0 w-full h-16 md:h-24" viewBox="0 0 1440 100" preserveAspectRatio="none">
@@ -99,7 +99,7 @@ export function LandingPage() {
           {/* Headline */}
           <h1 className="text-4xl md:text-5xl lg:text-[56px] font-extrabold text-white text-center leading-tight tracking-tight">
             Your AI-Powered<br />
-            <span className="bg-gradient-to-b from-white to-teal-200 bg-clip-text text-transparent">Rehab Coach</span>
+            <span className="bg-gradient-to-b from-white to-blue-200 bg-clip-text text-transparent">Rehab Coach</span>
           </h1>
 
           <p className="text-white/80 text-base md:text-lg text-center max-w-[620px] leading-relaxed mt-5 md:mt-6 px-4">
@@ -208,7 +208,7 @@ export function LandingPage() {
 
       {/* ─── FINAL CTA ─── */}
       <section className="px-5 md:px-10 lg:px-30 py-16 md:py-24 flex flex-col items-center gap-5 md:gap-6" style={{
-        background: 'linear-gradient(160deg, #00897B 0%, #4DB6AC 50%, #80CBC4 100%)',
+        background: 'linear-gradient(160deg, #003366 0%, #0059a4 50%, #4d91f0 100%)',
       }}>
         <h2 className="text-3xl md:text-[40px] font-extrabold text-white text-center leading-tight">Ready to reduce patient drop-off?</h2>
         <p className="text-white/80 text-base md:text-[17px] text-center max-w-[500px] leading-relaxed">

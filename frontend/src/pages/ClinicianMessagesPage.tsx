@@ -106,9 +106,9 @@ export function ClinicianMessagesPage() {
 
   return (
     <div className="flex flex-col h-full animate-fade-in">
-      <div className="px-4 sm:px-6 pt-4 pb-3 border-b border-neutral-200">
-        <h2 className="text-xl font-bold text-neutral-800">Messages</h2>
-        <p className="text-sm text-neutral-400">Direct messages with your patients</p>
+      <div className="px-4 sm:px-6 lg:px-8 pt-4 pb-3 border-b border-neutral-100">
+        <p className="text-[10px] font-bold text-primary-500 uppercase tracking-widest mb-0.5">Clinical Portal</p>
+        <h2 className="text-xl font-bold text-neutral-800 tracking-tight">Messages</h2>
       </div>
 
       <div className="flex flex-1 min-h-0">

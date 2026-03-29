@@ -7,9 +7,11 @@ import type {
   AvailableProgram,
   ChatMessage,
   ClinicalNote,
+  CoachModeResponse,
   ConsentResponse,
   ConsentStatus,
   Conversation,
+  DailyCheckin,
   DirectMessage,
   Goal,
   PatientInsight,
@@ -124,6 +126,10 @@ export function broadcastMessage(content: string): Promise<{ sent_count: number 
 
 export function markMessageRead(messageId: number): Promise<void> {
   return apiFetch('/api/messages/' + messageId + '/read', { method: 'PATCH' })
+}
+
+export function markAllRead(patientId: number): Promise<{ ok: boolean; marked: number }> {
+  return apiFetch(`/api/messages/patient/${patientId}/read-all`, { method: 'PATCH' })
 }
 
 export function getUnreadCount(patientId: number): Promise<{ count: number }> {
@@ -392,6 +398,10 @@ export function getPatientNotes(patientId: number): Promise<ClinicalNote[]> {
   return apiFetch<ClinicalNote[]>(`/api/patients/${patientId}/notes`)
 }
 
+export function getPatientNotesPatientView(patientId: number): Promise<ClinicalNote[]> {
+  return apiFetch<ClinicalNote[]>(`/api/patients/${patientId}/notes/patient-view`)
+}
+
 export function createPatientNote(patientId: number, content: string): Promise<ClinicalNote> {
   return apiFetch<ClinicalNote>(`/api/patients/${patientId}/notes`, {
     method: 'POST',
@@ -412,5 +422,37 @@ export function getAlerts(): Promise<AlertItem[]> {
 export function acknowledgeAlert(alertId: number): Promise<AlertItem> {
   return apiFetch<AlertItem>(`/api/alerts/${alertId}/acknowledge`, {
     method: 'PATCH',
+  })
+}
+
+// Daily check-in
+export function submitDailyCheckin(
+  patientId: number,
+  painLevel: number,
+  moodLevel: number,
+  notes?: string
+): Promise<DailyCheckin> {
+  return apiFetch<DailyCheckin>(`/api/patients/${patientId}/checkin`, {
+    method: 'POST',
+    body: JSON.stringify({ pain_level: painLevel, mood_level: moodLevel, notes: notes || null }),
+  })
+}
+
+export function getTodayCheckin(patientId: number): Promise<DailyCheckin | null> {
+  return apiFetch<DailyCheckin | null>(`/api/patients/${patientId}/checkin/today`)
+}
+
+export function getCheckins(patientId: number): Promise<DailyCheckin[]> {
+  return apiFetch<DailyCheckin[]>(`/api/patients/${patientId}/checkins`)
+}
+
+export function getCoachMode(patientId: number): Promise<CoachModeResponse> {
+  return apiFetch<CoachModeResponse>(`/api/patients/${patientId}/coach-mode`)
+}
+
+export function setCoachMode(patientId: number, coachMode: string): Promise<CoachModeResponse> {
+  return apiFetch<CoachModeResponse>(`/api/patients/${patientId}/coach-mode`, {
+    method: 'PUT',
+    body: JSON.stringify({ coach_mode: coachMode }),
   })
 }
