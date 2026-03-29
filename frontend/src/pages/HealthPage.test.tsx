@@ -5,7 +5,7 @@ import { HealthPage } from './HealthPage'
 describe('HealthPage', () => {
   it('renders without error', () => {
     render(<HealthPage />)
-    expect(screen.getByText(/medbridge/i)).toBeInTheDocument()
+    expect(screen.getByText(/carearc/i)).toBeInTheDocument()
   })
 
   it('shows a status indicator', () => {

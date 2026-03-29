@@ -10,13 +10,7 @@ export default defineConfig({
   server: {
     port: 3000,
     proxy: {
-      '/api/patients': 'http://127.0.0.1:8000',
-      '/api/coach': 'http://127.0.0.1:8000',
-      '/api/alerts': 'http://127.0.0.1:8000',
-      '/api/goals': 'http://127.0.0.1:8000',
-      '/api/analytics': 'http://127.0.0.1:8000',
-      '/api/health': 'http://127.0.0.1:8000',
-      '/api/messages': 'http://127.0.0.1:8000',
+      '/api': 'http://127.0.0.1:8000',
     },
   },
   test: {

@@ -32,6 +32,8 @@ class CoachState(TypedDict):
     tool_results: list[dict[str, Any]]
     safety_status: SafetyStatus
     metadata: dict[str, Any]
+    # Consent verification (set by service layer before graph invocation)
+    consent_verified: NotRequired[bool]
     # Routing output markers (set by graph nodes, not required on input)
     dispatched_to: NotRequired[str | None]
     error: NotRequired[str | None]

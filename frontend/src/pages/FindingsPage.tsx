@@ -294,7 +294,7 @@ export function FindingsPage() {
       icon: <svg className="w-7 h-7 text-red-500" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>,
       title: 'The HEP Adherence Crisis',
       subtitle: 'Patients are prescribed exercises — then life gets in the way',
-      situation: 'Healthcare providers prescribe Home Exercise Programs (HEPs) as a cornerstone of rehabilitation. Yet the data is devastating: only 35% of patients fully adhere to their plans. 65% abandon within the first month. 70% never complete their full course of care. The MedBridge GO app delivers content beautifully — but content delivery alone doesn\'t drive behavior change. The app waits for patients to open it. Patients who are struggling don\'t open it.',
+      situation: 'Healthcare providers prescribe Home Exercise Programs (HEPs) as a cornerstone of rehabilitation. Yet the data is devastating: only 35% of patients fully adhere to their plans. 65% abandon within the first month. 70% never complete their full course of care. The CareArc GO app delivers content beautifully — but content delivery alone doesn\'t drive behavior change. The app waits for patients to open it. Patients who are struggling don\'t open it.',
       task: 'Build a system that proactively reaches patients before they fall off — not after. Move from passive content delivery to active behavioral engagement. The intervention must feel supportive (not nagging), respect clinical boundaries, and scale to thousands of patients without increasing clinician workload.',
       action: 'We built an AI accountability coach that initiates contact at Day 2, 5, and 7 with personalized check-ins referencing the patient\'s specific goals and exercises. The coach uses Motivational Interviewing (MI) techniques — open questions, affirmations, reflections — proven to increase self-efficacy. Tone adapts based on context: celebration when on track, gentle nudge when falling behind, warm re-engagement after silence. Every message passes through a dual-layer safety pipeline before delivery.',
       result: 'Published research shows AI text coaching raises adherence from 35% to 72-92% in comparable healthcare contexts. Solution-focused coaching techniques improve completion rates by 40%. Smart reminders alone cause nearly all study participants to exercise more regularly. Our system combines all three approaches: proactive outreach + MI coaching + intelligent scheduling = projected 2x+ adherence improvement.',
@@ -314,7 +314,7 @@ export function FindingsPage() {
       icon: <svg className="w-7 h-7 text-purple-500" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
       title: 'The Clinician Bandwidth Gap',
       subtitle: 'PTs are stretched thin — they can\'t check in with every patient',
-      situation: 'A typical physical therapist manages 50-80 active patients simultaneously. Each patient ideally needs 2-3 motivational touch-points per week between visits. That\'s 100-240 personalized messages per week — on top of documentation, billing, and in-person sessions. Clinicians know follow-up matters, but the math doesn\'t work. MedBridge provides dashboards showing who\'s falling off, but seeing the problem and having bandwidth to fix it are two different things.',
+      situation: 'A typical physical therapist manages 50-80 active patients simultaneously. Each patient ideally needs 2-3 motivational touch-points per week between visits. That\'s 100-240 personalized messages per week — on top of documentation, billing, and in-person sessions. Clinicians know follow-up matters, but the math doesn\'t work. CareArc provides dashboards showing who\'s falling off, but seeing the problem and having bandwidth to fix it are two different things.',
       task: 'Automate the motivational touchpoints that clinicians know patients need but can\'t personally deliver. The system must feel personal (not generic), adapt to patient progress, and escalate to the clinician only when human judgment is truly needed — not for every routine check-in.',
       action: 'Our LangGraph agent autonomously handles the routine engagement cycle: onboarding conversations, goal-setting, scheduled check-ins, and re-engagement attempts. Clinicians are only pulled in for three scenarios: (1) a patient asks a clinical question, (2) crisis signals are detected, or (3) three consecutive messages go unanswered. The AI handles the other 90%+ of touchpoints. Tool-calling lets the agent set reminders, update goals, and pull program summaries without human intervention.',
       result: 'By automating routine check-ins, each clinician effectively gains 10-20 hours/week of patient engagement capacity. AC Health (a competitor) claims similar time savings from post-session automation alone. Our system goes further — it doesn\'t just save time on existing tasks, it creates an entirely new engagement layer that clinicians couldn\'t provide before. The clinician alert system ensures no patient falls through the cracks: 3 unanswered messages triggers automatic escalation.',
@@ -324,7 +324,7 @@ export function FindingsPage() {
         { value: '90%', label: 'Touchpoints automated', color: 'text-primary-600' },
         { value: '20%', label: 'Hours/week saved per PT', color: 'text-emerald-600' },
       ],
-      sources: ['APTA Workforce Study 2024', 'AC Health Case Studies', 'MedBridge RTM Billing Data']
+      sources: ['APTA Workforce Study 2024', 'AC Health Case Studies', 'CareArc RTM Billing Data']
     },
     {
       id: 'silent-dropout',
@@ -334,7 +334,7 @@ export function FindingsPage() {
       icon: <svg className="w-7 h-7 text-amber-500" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" /></svg>,
       title: 'The Silent Dropout Problem',
       subtitle: 'Patients don\'t say "I\'m quitting" — they just stop responding',
-      situation: 'The most dangerous patient is the one you don\'t hear from. Current MedBridge workflows rely on patients actively logging exercises in the app. When a patient disengages, the clinician sees declining metrics on a dashboard — but by the time they notice and reach out, the patient has often mentally checked out. Research shows patients with poor HEP adherence are 60% more likely to discontinue therapy entirely. The dropout is silent and gradual.',
+      situation: 'The most dangerous patient is the one you don\'t hear from. Current CareArc workflows rely on patients actively logging exercises in the app. When a patient disengages, the clinician sees declining metrics on a dashboard — but by the time they notice and reach out, the patient has often mentally checked out. Research shows patients with poor HEP adherence are 60% more likely to discontinue therapy entirely. The dropout is silent and gradual.',
       task: 'Detect disengagement early and intervene progressively — not with a single "hey, you haven\'t logged in" message, but with an intelligent escalation strategy that respects the patient\'s space while maintaining connection. Define clear phase transitions and clinician alert triggers.',
       action: 'We implemented a deterministic phase machine: PENDING > ONBOARDING > ACTIVE > AGING > DORMANT. Each phase has specific rules. In the AGING phase, an exponential backoff strategy sends messages at 1-day, 2-day, then 3-day intervals — each with increasingly warm, low-pressure tone. After 3 unanswered messages, the phase transitions to DORMANT and triggers a clinician alert with full conversation context. If a dormant patient returns, a warm re-engagement subgraph welcomes them back without guilt or judgment.',
       result: 'This approach mirrors the disengagement handling proven effective in chronic disease management. Exponential backoff prevents "notification fatigue" — the #1 reason patients mute health apps. The clinician alert at the 3-message threshold ensures human intervention happens at the optimal moment: early enough to matter, late enough to not waste clinician time on patients who were just busy for a day. Research shows clinician awareness alone increases adherence by 15-20%.',
@@ -354,7 +354,7 @@ export function FindingsPage() {
       icon: <svg className="w-7 h-7 text-sky-500" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" /></svg>,
       title: 'The Clinical Safety Void',
       subtitle: 'AI in healthcare without guardrails is a liability, not a feature',
-      situation: 'Hallucination rates in clinical AI range from 8-20%. Woebot — a well-funded mental health chatbot — shut down in June 2025 because FDA regulatory uncertainty for LLMs made it untenable. Documented cases exist of AI normalizing dangerous behavior and underestimating suicide risk. MedBridge\'s Patient Copilot draws from a curated content library, but any free-form AI generation in healthcare requires a rigorous safety architecture. The January 2026 FDA guidance exempts "general wellness software" like exercise motivation — but only if it stays in that lane.',
+      situation: 'Hallucination rates in clinical AI range from 8-20%. Woebot — a well-funded mental health chatbot — shut down in June 2025 because FDA regulatory uncertainty for LLMs made it untenable. Documented cases exist of AI normalizing dangerous behavior and underestimating suicide risk. CareArc\'s Patient Copilot draws from a curated content library, but any free-form AI generation in healthcare requires a rigorous safety architecture. The January 2026 FDA guidance exempts "general wellness software" like exercise motivation — but only if it stays in that lane.',
       task: 'Build an AI coach that motivates and supports without ever crossing into clinical advice. Every generated message must be checked before delivery. Clinical questions (symptoms, medication, diagnosis) must trigger a hard redirect. Mental health crisis signals must trigger immediate clinician alerts. The system must be auditable, consent-gated, and HIPAA-compliant.',
       action: 'We built a dual-layer safety pipeline. Layer 1: a keyword + pattern classifier catches obvious clinical content (medication names, symptom descriptions, diagnosis language). Layer 2: an LLM-based safety classifier evaluates semantic intent. If either layer flags content, the message is blocked, retried once with an augmented "stay in lane" prompt, then falls back to a safe generic message. Crisis keywords (suicide, self-harm, emergency) trigger an immediate clinician alert via the alert_clinician tool. A consent gate verifies both app login and outreach consent on every single interaction — not just at thread creation.',
       result: 'This architecture matches the "deterministic state machines + LLM generation + dual-layer safety + human-in-the-loop" pattern recommended by Hippocratic AI ($3.5B valuation, 22-LLM safety constellation). The FDA wellness exemption provides a clear regulatory path — as long as the coach motivates without prescribing, it falls outside device regulation. Full audit logging enables compliance review. The consent-per-interaction model exceeds HIPAA requirements and builds patient trust.',
@@ -374,10 +374,10 @@ export function FindingsPage() {
       icon: <svg className="w-7 h-7 text-primary-500" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 01-.825-.242m9.345-8.334a2.126 2.126 0 00-.476-.095 48.64 48.64 0 00-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0011.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155" /></svg>,
       title: 'The Between-Visits Dead Zone',
       subtitle: 'The most critical period for recovery has zero active support',
-      situation: 'A typical PT patient visits their clinician 2-3 times per week. The other 4-5 days are when the real work happens — or doesn\'t. MedBridge GO provides exercise videos and tracking, but it\'s a passive tool. Between visits, there\'s no conversation, no encouragement, no acknowledgment. The patient is alone with their pain, their doubt, and their couch. Competitors like Sword Health ($4B valuation) and Hinge Health (IPO at $2.6B) recognized this gap and invested billions in AI-powered between-visit engagement.',
+      situation: 'A typical PT patient visits their clinician 2-3 times per week. The other 4-5 days are when the real work happens — or doesn\'t. CareArc GO provides exercise videos and tracking, but it\'s a passive tool. Between visits, there\'s no conversation, no encouragement, no acknowledgment. The patient is alone with their pain, their doubt, and their couch. Competitors like Sword Health ($4B valuation) and Hinge Health (IPO at $2.6B) recognized this gap and invested billions in AI-powered between-visit engagement.',
       task: 'Fill the dead zone with meaningful, personalized engagement that makes the patient feel supported without being intrusive. The system must understand where each patient is in their journey, adapt its communication style, and create a sense of accountability — the same feeling patients get from their clinician, but available 24/7.',
       action: 'Our AI coach creates a continuous engagement thread from day one. The onboarding conversation establishes a personal goal (not just "do your exercises" — a real goal like "be able to pick up my grandkid by June"). Every subsequent message references this goal. The LangGraph router dispatches to phase-specific subgraphs, each with its own tone and strategy. The active phase celebrates progress and gently challenges. The aging phase acknowledges difficulty. The re-engagement phase reconnects with warmth. Tool-calling pulls real program data so messages reference actual exercises, not generic advice.',
-      result: 'Sword Health\'s Phoenix AI — the closest comparable system — reports 81% member adherence and 100% client retention. Kaia Health (acquired by Sword for $285M) demonstrated 22% claims cost savings and 50% pain reduction with their AI-guided approach. Our system provides the same proactive engagement layer but is designed to integrate into MedBridge\'s existing platform — not replace it. The CMS ACCESS Model (launching July 2026) creates explicit reimbursement for tech-enabled MSK care, making this a revenue generator, not just a cost.',
+      result: 'Sword Health\'s Phoenix AI — the closest comparable system — reports 81% member adherence and 100% client retention. Kaia Health (acquired by Sword for $285M) demonstrated 22% claims cost savings and 50% pain reduction with their AI-guided approach. Our system provides the same proactive engagement layer but is designed to integrate into CareArc\'s existing platform — not replace it. The CMS ACCESS Model (launching July 2026) creates explicit reimbursement for tech-enabled MSK care, making this a revenue generator, not just a cost.',
       stats: [
         { value: '5%', label: 'Days/week without support', color: 'text-red-600' },
         { value: '4%', label: 'Billion — Sword\'s valuation', color: 'text-purple-600' },
@@ -399,7 +399,7 @@ export function FindingsPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" />
               </svg>
             </div>
-            <span className="text-neutral-900 text-lg font-extrabold tracking-tight">MedBridge</span>
+            <span className="text-neutral-900 text-lg font-extrabold tracking-tight" style={{ fontFamily: 'var(--font-brand)' }}>CareArc</span>
             <span className="text-primary-600 text-lg font-extrabold">Coach</span>
           </button>
 
@@ -442,7 +442,7 @@ export function FindingsPage() {
             </div>
 
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-black text-white leading-[1.1] tracking-tight">
-              Why MedBridge Needs an<br />
+              Why CareArc Needs an<br />
               <span className="bg-gradient-to-r from-primary-400 to-cyan-400 bg-clip-text text-transparent">AI Accountability Coach</span>
             </h1>
 
@@ -557,7 +557,7 @@ export function FindingsPage() {
               <div className="flex flex-col gap-6">
                 {/* Row 1 — Input */}
                 <div className="flex flex-wrap items-center justify-center gap-4 md:gap-6">
-                  <ArchNode label="Patient" sub="MedBridge GO" color="bg-indigo-500" icon={<svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" /></svg>} />
+                  <ArchNode label="Patient" sub="CareArc GO" color="bg-indigo-500" icon={<svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" /></svg>} />
                   <svg className="w-8 h-4 text-neutral-300" viewBox="0 0 32 16" fill="none"><path d="M0 8h28m0 0l-6-6m6 6l-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
                   <ArchNode label="Consent Gate" sub="Login + Consent" color="bg-amber-500" icon={<svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg>} />
                   <svg className="w-8 h-4 text-neutral-300" viewBox="0 0 32 16" fill="none"><path d="M0 8h28m0 0l-6-6m6 6l-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
@@ -704,7 +704,7 @@ export function FindingsPage() {
 
             {/* App Review Pain Points */}
             <div className="bg-white rounded-2xl border border-neutral-200 p-6 md:p-10 shadow-sm">
-              <h3 className="text-lg md:text-xl font-bold text-neutral-900 mb-2">MedBridge GO: What Users Actually Say</h3>
+              <h3 className="text-lg md:text-xl font-bold text-neutral-900 mb-2">CareArc GO: What Users Actually Say</h3>
               <p className="text-sm text-neutral-500 mb-8">Despite 4.8-star aggregate rating (134K+ reviews), the written review content reveals consistent patterns.</p>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5">
@@ -817,12 +817,12 @@ export function FindingsPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-neutral-100">
-                    <CompetitorRow name="MedBridge (current)" aiCoaching={false} proactive={false} safety={false} consent={false} disengagement={false} />
+                    <CompetitorRow name="CareArc (current)" aiCoaching={false} proactive={false} safety={false} consent={false} disengagement={false} />
                     <CompetitorRow name="Sword Health / Phoenix" aiCoaching={true} proactive={false} safety={false} consent={false} disengagement={false} />
                     <CompetitorRow name="Hinge Health / Robin" aiCoaching={true} proactive={false} safety={false} consent={false} disengagement={false} />
                     <CompetitorRow name="Kaia Health" aiCoaching={true} proactive={false} safety={false} consent={false} disengagement={false} />
                     <CompetitorRow name="Physitrack" aiCoaching={false} proactive={false} safety={false} consent={false} disengagement={false} />
-                    <CompetitorRow name="MedBridge + Our AI Coach" aiCoaching={true} proactive={true} safety={true} consent={true} disengagement={true} ours />
+                    <CompetitorRow name="CareArc + Our AI Coach" aiCoaching={true} proactive={true} safety={true} consent={true} disengagement={true} ours />
                   </tbody>
                 </table>
               </div>
@@ -860,7 +860,7 @@ export function FindingsPage() {
                   val: '100K+ providers',
                   rev: '102 countries',
                   color: 'bg-emerald-500',
-                  what: '18,000+ exercise library (vs MedBridge\'s 8,000+). Telehealth Pro for video sessions. 80+ outcome measures.',
+                  what: '18,000+ exercise library (vs CareArc\'s 8,000+). Telehealth Pro for video sessions. 80+ outcome measures.',
                   gap: 'Zero AI capabilities. No coaching of any kind. Purely an exercise delivery + tracking tool. No education platform.',
                 },
               ].map((c) => (
@@ -890,7 +890,7 @@ export function FindingsPage() {
             <div className="bg-gradient-to-br from-neutral-900 to-neutral-800 rounded-2xl p-8 md:p-12 text-center">
               <h3 className="text-xl md:text-2xl font-bold text-white mb-4">Our Unique Position</h3>
               <p className="text-neutral-300 text-base md:text-lg max-w-[700px] mx-auto leading-relaxed">
-                Sword and Hinge spend billions building full platforms that replace the provider. <span className="text-primary-400 font-semibold">We built the engagement layer that makes MedBridge's existing platform stickier.</span> No hardware. No competing with clinicians. Just the proactive AI coach that fills the gap between visits — with clinical safety guardrails no competitor has.
+                Sword and Hinge spend billions building full platforms that replace the provider. <span className="text-primary-400 font-semibold">We built the engagement layer that makes CareArc's existing platform stickier.</span> No hardware. No competing with clinicians. Just the proactive AI coach that fills the gap between visits — with clinical safety guardrails no competitor has.
               </p>
               <div className="flex flex-wrap justify-center gap-3 mt-8">
                 {['Additive, not replacive', 'Provider-first model', 'Safety-first architecture', 'Consent on every interaction', 'RTM billing amplifier'].map((tag) => (
@@ -939,7 +939,7 @@ export function FindingsPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" />
               </svg>
             </div>
-            <span className="text-white text-sm font-bold">MedBridge Coach</span>
+            <span className="text-white text-sm font-bold" style={{ fontFamily: 'var(--font-brand)' }}>CareArc Coach</span>
           </div>
           <p className="text-neutral-500 text-xs">Market research and strategic analysis — March 2026</p>
         </div>

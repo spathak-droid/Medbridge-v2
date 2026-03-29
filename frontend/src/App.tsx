@@ -23,12 +23,16 @@ import { ClinicianLogin } from './pages/auth/ClinicianLogin'
 import { ClinicianSignup } from './pages/auth/ClinicianSignup'
 import { usePatient } from './hooks/usePatient'
 import { useAuth } from './contexts/AuthContext'
+import { useNavigate } from 'react-router-dom'
 
 function PatientChatWrapper() {
   const { patientId, loading } = usePatient()
+  const { signOut } = useAuth()
+  const navigate = useNavigate()
+  const handleDecline = async () => { await signOut(); navigate('/landing') }
   if (loading || !patientId) return null
   return (
-    <ConsentGate patientId={patientId} onDecline={() => {}}>
+    <ConsentGate patientId={patientId} onDecline={handleDecline}>
       <ChatPage patientId={patientId} />
     </ConsentGate>
   )
@@ -36,9 +40,12 @@ function PatientChatWrapper() {
 
 function PatientProgramWrapper() {
   const { patientId, loading } = usePatient()
+  const { signOut } = useAuth()
+  const navigate = useNavigate()
+  const handleDecline = async () => { await signOut(); navigate('/landing') }
   if (loading || !patientId) return null
   return (
-    <ConsentGate patientId={patientId} onDecline={() => {}}>
+    <ConsentGate patientId={patientId} onDecline={handleDecline}>
       <ProgramPage />
     </ConsentGate>
   )
@@ -46,9 +53,12 @@ function PatientProgramWrapper() {
 
 function PatientProgressWrapper() {
   const { patientId, loading } = usePatient()
+  const { signOut } = useAuth()
+  const navigate = useNavigate()
+  const handleDecline = async () => { await signOut(); navigate('/landing') }
   if (loading || !patientId) return null
   return (
-    <ConsentGate patientId={patientId} onDecline={() => {}}>
+    <ConsentGate patientId={patientId} onDecline={handleDecline}>
       <ProgressPage />
     </ConsentGate>
   )

@@ -135,21 +135,21 @@ export function ProgressPage() {
 
       {/* Stats row */}
       {adherence && (
-        <div className="grid grid-cols-3 gap-3 mb-6">
+        <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-6">
           <div className="card p-4 text-center">
-            <div className={`text-2xl font-bold ${adherenceColor(adherence.adherence_percentage)}`}>
+            <div className={`text-xl sm:text-2xl font-bold ${adherenceColor(adherence.adherence_percentage)}`}>
               {adherence.adherence_percentage}%
             </div>
             <div className="text-[11px] text-neutral-400 mt-1">Adherence</div>
           </div>
           <div className="card p-4 text-center">
-            <div className="text-2xl font-bold text-amber-500">
+            <div className="text-xl sm:text-2xl font-bold text-amber-500">
               🔥 {adherence.current_streak}
             </div>
             <div className="text-[11px] text-neutral-400 mt-1">Day Streak</div>
           </div>
           <div className="card p-4 text-center">
-            <div className="text-2xl font-bold text-neutral-700">
+            <div className="text-xl sm:text-2xl font-bold text-neutral-700">
               {adherence.days_completed}
             </div>
             <div className="text-[11px] text-neutral-400 mt-1">Days Done</div>
@@ -172,7 +172,7 @@ export function ProgressPage() {
         return (
           <div className="card p-5 mb-6">
             <h3 className="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-4">Last 7 Days</h3>
-            <div className="grid grid-cols-7 gap-2">
+            <div className="grid grid-cols-7 gap-1 sm:gap-2">
               {days.map((day) => {
                 const d = new Date(day.date + 'T00:00:00')
                 const dayName = DAY_NAMES[d.getDay()]
@@ -184,7 +184,7 @@ export function ProgressPage() {
                       {isToday ? 'Today' : dayName}
                     </span>
                     <div className={`
-                      w-9 h-9 rounded-xl flex items-center justify-center
+                      w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center
                       text-xs font-bold transition-all
                       ${day.completed
                         ? 'bg-success-500 text-white shadow-sm'

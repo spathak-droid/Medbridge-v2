@@ -107,6 +107,9 @@ async def list_patients(
     _user: AuthenticatedUser = Depends(require_clinician),
 ) -> list[PatientListItem]:
     """List all patients with summary data. Use real_only=true to exclude demo/seeded patients."""
+    import traceback as _tb
+    import logging as _log
+    _logger = _log.getLogger(__name__)
     query = select(Patient).order_by(Patient.id)
     if real_only:
         query = query.where(
@@ -116,36 +119,44 @@ async def list_patients(
         query = query.where(
             (Patient.external_id.is_(None)) | (Patient.external_id != exclude_uid)
         )
-    result = await session.execute(query)
-    patients = result.scalars().all()
-    items = []
-    for p in patients:
-        # Adherence — use real computation from exercise_logs
-        real_adh = await compute_adherence(session, p.id, p.external_id or "", p.program_type)
-        if real_adh:
-            adh_pct = real_adh["adherence_percentage"]
-        else:
-            adh = get_adherence_for_patient(p.external_id or "", p.program_type)
-            adh_pct = adh["adherence_percentage"] if adh and isinstance(adh, dict) else None
+    try:
+        result = await session.execute(query)
+        patients = result.scalars().all()
+        items = []
+        for p in patients:
+            try:
+                # Adherence — use real computation from exercise_logs
+                real_adh = await compute_adherence(session, p.id, p.external_id or "", p.program_type)
+                if real_adh:
+                    adh_pct = real_adh["adherence_percentage"]
+                else:
+                    adh = get_adherence_for_patient(p.external_id or "", p.program_type)
+                    adh_pct = adh["adherence_percentage"] if adh and isinstance(adh, dict) else None
+            except Exception as e:
+                _logger.error("Adherence error for patient %s: %s\n%s", p.id, e, _tb.format_exc())
+                adh_pct = None
 
-        # Latest confirmed goal
-        goal_result = await session.execute(
-            select(Goal)
-            .where(Goal.patient_id == p.id, Goal.confirmed == True)  # noqa: E712
-            .order_by(Goal.created_at.desc())
-        )
-        goal = goal_result.scalars().first()
+            # Latest confirmed goal
+            goal_result = await session.execute(
+                select(Goal)
+                .where(Goal.patient_id == p.id, Goal.confirmed == True)  # noqa: E712
+                .order_by(Goal.created_at.desc())
+            )
+            goal = goal_result.scalars().first()
 
-        items.append(PatientListItem(
-            id=p.id,
-            name=display_name(p.name),
-            external_id=p.external_id or "",
-            phase=p.phase.value,
-            consent_given=p.consent_given,
-            adherence_pct=adh_pct,
-            goal_summary=goal.raw_text if goal else None,
-        ))
-    return items
+            items.append(PatientListItem(
+                id=p.id,
+                name=display_name(p.name),
+                external_id=p.external_id or "",
+                phase=p.phase.value,
+                consent_given=p.consent_given,
+                adherence_pct=adh_pct,
+                goal_summary=goal.raw_text if goal else None,
+            ))
+        return items
+    except Exception as e:
+        _logger.error("list_patients error: %s\n%s", e, _tb.format_exc())
+        raise
 
 
 class ProgramResponse(BaseModel):

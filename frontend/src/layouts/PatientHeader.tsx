@@ -92,21 +92,23 @@ export function PatientHeader() {
           </div>
         </div>
 
-        <button
-          onClick={() => setShowSwitcher(true)}
-          className="
-            flex items-center gap-1.5
-            px-3 py-1.5 rounded-lg
-            text-xs font-medium text-neutral-500
-            hover:bg-neutral-100
-            transition-colors cursor-pointer
-          "
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.75} stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
-          </svg>
-          <span className="hidden sm:inline">Switch</span>
-        </button>
+        {isClinician && (
+          <button
+            onClick={() => setShowSwitcher(true)}
+            className="
+              flex items-center gap-1.5
+              px-3 py-1.5 rounded-lg
+              text-xs font-medium text-neutral-500
+              hover:bg-neutral-100
+              transition-colors cursor-pointer
+            "
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.75} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+            </svg>
+            <span className="hidden sm:inline">Switch</span>
+          </button>
+        )}
       </header>
 
       {showSwitcher && <PatientSwitcher onClose={() => setShowSwitcher(false)} />}

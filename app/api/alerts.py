@@ -13,6 +13,13 @@ from app.models.alert import Alert
 from app.models.enums import AlertStatus, AlertUrgency
 from app.models.patient import Patient
 
+
+def display_name(name: str) -> str:
+    """Never show raw emails as patient names."""
+    if '@' in name:
+        return name.split('@')[0]
+    return name
+
 router = APIRouter(prefix="/api/alerts", tags=["alerts"])
 
 URGENCY_ORDER = {
@@ -66,7 +73,7 @@ async def get_alerts(
         AlertResponse(
             id=alert.id,
             patient_id=alert.patient_id,
-            patient_name=patient_name,
+            patient_name=display_name(patient_name),
             reason=alert.reason,
             urgency=alert.urgency.value,
             status=alert.status.value,
@@ -104,7 +111,7 @@ async def acknowledge_alert(
     return AlertResponse(
         id=alert.id,
         patient_id=alert.patient_id,
-        patient_name=patient_name,
+        patient_name=display_name(patient_name),
         reason=alert.reason,
         urgency=alert.urgency.value,
         status=alert.status.value,

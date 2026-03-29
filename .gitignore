@@ -1,36 +1,52 @@
-.claude/*
-.factory/*
-Research.md
-Skills.md
-Task.md
-artifacts/*
-
-.vscode/*
-.idea/*
+# IDE / editor
+.vscode/
+.idea/
 .DS_Store
+
+# Environment & secrets
 .env
 .env.local
-.env.development.local
+.env.*.local
 firebase-service-account.json
+
+# Runtime / data
 audit.log
 *.db
-.env.test.local
-.env.production.local
+images/
 
+# Python
 __pycache__/
 *.pyc
 *.egg-info/
 .venv/
+venv/
 medbridge.egg-info/
-node_modules/*
-dist/*
-build/*
-coverage/*
-.pytest_cache/*
-.ruff_cache/*
-.mypy_cache/*
-.vscode/*
-.idea/*
-.DS_Store
-.env
-.env.local
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Node / Frontend
+node_modules/
+dist/
+build/
+coverage/
+
+# Agent / tooling artifacts
+.claude/
+.factory/
+.agents/
+.humanlayer/
+docs/superpowers/
+artifacts/
+
+# Research / internal docs (not for repo)
+RESEARCH.md
+SKILL.md
+MARKET_RESEARCH_2026.md
+MARKET_RESEARCH_WEB.md
+HIPAA_COMPLIANCE.md
+CLAUDE.md
+
+# Misc
+scripts/wipe_firebase_users.html
+designs/

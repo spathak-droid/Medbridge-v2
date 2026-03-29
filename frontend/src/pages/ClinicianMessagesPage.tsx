@@ -113,7 +113,10 @@ export function ClinicianMessagesPage() {
 
       <div className="flex flex-1 min-h-0">
         {/* Patient list sidebar */}
-        <div className="w-72 border-r border-neutral-200 flex flex-col bg-white">
+        <div className={`
+          ${selectedPatient ? 'hidden md:flex' : 'flex'}
+          w-full md:w-72 border-r border-neutral-200 flex-col bg-white
+        `}>
           <div className="p-3">
             <input
               type="text"
@@ -155,7 +158,10 @@ export function ClinicianMessagesPage() {
         </div>
 
         {/* Chat area */}
-        <div className="flex-1 flex flex-col">
+        <div className={`
+          ${selectedPatient ? 'flex' : 'hidden md:flex'}
+          flex-1 flex-col
+        `}>
           {!selectedPatient ? (
             <div className="flex-1 flex items-center justify-center">
               <div className="text-center">
@@ -171,6 +177,14 @@ export function ClinicianMessagesPage() {
             <>
               {/* Chat header */}
               <div className="px-4 py-3 border-b border-neutral-200 bg-white flex items-center gap-3">
+                <button
+                  onClick={() => setSelectedPatient(null)}
+                  className="md:hidden p-1 -ml-1 text-neutral-500 hover:text-neutral-700 cursor-pointer"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+                  </svg>
+                </button>
                 <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white text-xs font-bold">
                   {selectedPatient.name.split(' ').map(n => n[0]).join('')}
                 </div>
@@ -204,7 +218,7 @@ export function ClinicianMessagesPage() {
                     return (
                       <div key={msg.id} className={`flex ${isClinician ? 'justify-end' : 'justify-start'}`}>
                         <div className={`
-                          max-w-[70%] rounded-2xl px-4 py-2.5
+                          max-w-[85%] sm:max-w-[70%] rounded-2xl px-4 py-2.5
                           ${isClinician
                             ? 'bg-primary-600 text-white rounded-br-md'
                             : 'bg-white border border-neutral-200 text-neutral-800 rounded-bl-md shadow-sm'

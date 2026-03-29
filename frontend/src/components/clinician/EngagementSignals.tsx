@@ -12,6 +12,8 @@ const MILESTONE_CONFIG: Record<string, { color: string; icon: string }> = {
   goal_confirmed: { color: 'bg-emerald-400', icon: 'G' },
   phase_change: { color: 'bg-blue-400', icon: 'P' },
   alert_generated: { color: 'bg-red-400', icon: 'A' },
+  streak_milestone: { color: 'bg-green-500', icon: 'S' },
+  adherence_milestone: { color: 'bg-blue-500', icon: 'A' },
 }
 
 export function EngagementSignals({ silentPatients, unansweredPatients, milestones }: EngagementSignalsProps) {

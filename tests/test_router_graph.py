@@ -67,7 +67,7 @@ class TestCoachStateSchema:
 class TestRouterGraph:
     """Main router graph dispatches to the correct subgraph based on phase."""
 
-    def _invoke(self, phase: PatientPhase, messages: list[Any] | None = None) -> dict[str, Any]:
+    def _invoke(self, phase: PatientPhase, messages: list[Any] | None = None, consent_verified: bool = True) -> dict[str, Any]:
         graph = build_router_graph()
         state: CoachState = {
             "patient_id": 1,
@@ -77,6 +77,7 @@ class TestRouterGraph:
             "tool_results": [],
             "safety_status": SafetyStatus.PASSED,
             "metadata": {},
+            "consent_verified": consent_verified,
         }
         result: dict[str, Any] = graph.invoke(state)
         return result
@@ -121,10 +122,17 @@ class TestRouterGraph:
             "tool_results": [],
             "safety_status": SafetyStatus.BLOCKED,
             "metadata": {},
+            "consent_verified": True,
         }
         result = graph.invoke(state)
         assert result.get("error") is not None
         assert "consent" in result["error"].lower() or "blocked" in result["error"].lower()
+
+    def test_consent_not_verified_returns_error(self):
+        """Consent gate blocks interaction when consent_verified is False."""
+        result = self._invoke(PatientPhase.ACTIVE, consent_verified=False)
+        assert result.get("error") is not None
+        assert "consent" in result["error"].lower()
 
     def test_graph_is_compiled(self):
         """build_router_graph returns a compiled graph."""
@@ -143,6 +151,7 @@ class TestRouterGraph:
             "tool_results": [],
             "safety_status": SafetyStatus.PASSED,
             "metadata": {"source": "sms"},
+            "consent_verified": True,
         }
         result = graph.invoke(state)
         assert result["patient_id"] == 42

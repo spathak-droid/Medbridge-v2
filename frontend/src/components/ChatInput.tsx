@@ -8,8 +8,6 @@ interface ChatInputProps {
 const QUICK_ACTIONS = [
   { label: 'Set a reminder', icon: '⏰', prompt: 'Set a reminder for me to do my exercises tomorrow at 9am' },
   { label: 'Check my progress', icon: '📊', prompt: 'How am I doing with my exercises?' },
-  { label: 'Change my goal', icon: '🎯', prompt: "I'd like to update my exercise goal" },
-  { label: 'Switch program', icon: '🔄', prompt: 'Can I switch to a different exercise program?' },
   { label: 'Exercise tips', icon: '💡', prompt: 'Give me tips on how to do my exercises with better form' },
   { label: 'Motivation', icon: '💪', prompt: "I'm struggling to stay motivated. Can you help?" },
 ]

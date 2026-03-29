@@ -4,8 +4,8 @@ Reads the patient's current phase from CoachState and dispatches to the
 appropriate phase-specific subgraph node. The router contains no LLM logic
 — it reads state and routes.
 
-Consent gate is the first node: if safety_status is BLOCKED the graph
-short-circuits with an error.
+Consent gate is the first node: verifies the patient has logged in and
+consented to outreach before any coach interaction proceeds.
 """
 
 from typing import Callable
@@ -20,9 +20,16 @@ from app.models.enums import PatientPhase, SafetyStatus
 # ---------------------------------------------------------------------------
 
 def consent_gate(state: CoachState) -> dict:
-    """First node — check that consent / safety status allows interaction."""
+    """First node — block if patient has not met consent requirements.
+
+    Checks the consent_verified flag set by the service layer (which reads
+    Patient.logged_in and Patient.consent_given from the DB). Also blocks
+    if safety_status is BLOCKED.
+    """
     if state["safety_status"] == SafetyStatus.BLOCKED:
         return {"error": "Blocked: patient has not passed consent gate"}
+    if not state.get("consent_verified", False):
+        return {"error": "Blocked: patient has not logged in or consented to outreach"}
     return {}
 
 

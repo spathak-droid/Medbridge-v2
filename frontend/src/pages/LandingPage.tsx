@@ -37,7 +37,7 @@ export function LandingPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" />
               </svg>
             </div>
-            <span className="text-white text-xl md:text-[22px] font-extrabold tracking-tight">MedBridge</span>
+            <span className="text-white text-xl md:text-[22px] font-extrabold tracking-tight" style={{ fontFamily: 'var(--font-brand)' }}>CareArc</span>
           </div>
 
           {/* Desktop nav */}
@@ -162,7 +162,7 @@ export function LandingPage() {
         </div>
         <h2 className="text-3xl md:text-[40px] font-extrabold text-neutral-900 text-center leading-tight">Three steps to better outcomes</h2>
         <p className="text-neutral-500 text-base md:text-[17px] text-center max-w-[560px] leading-relaxed">
-          MedBridge Coach automates patient engagement so clinicians can focus on care.
+          CareArc Coach automates patient engagement so clinicians can focus on care.
         </p>
 
         <div className="flex flex-col md:flex-row gap-5 md:gap-8 w-full max-w-[1200px]">
@@ -212,7 +212,7 @@ export function LandingPage() {
       }}>
         <h2 className="text-3xl md:text-[40px] font-extrabold text-white text-center leading-tight">Ready to reduce patient drop-off?</h2>
         <p className="text-white/80 text-base md:text-[17px] text-center max-w-[500px] leading-relaxed">
-          Join 2,400+ providers already using MedBridge Coach.
+          Join 2,400+ providers already using CareArc Coach.
         </p>
         <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-4 mt-4">
           <button
@@ -240,7 +240,7 @@ export function LandingPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" />
                 </svg>
               </div>
-              <span className="text-white text-lg font-bold">MedBridge</span>
+              <span className="text-white text-lg font-bold" style={{ fontFamily: 'var(--font-brand)' }}>CareArc</span>
             </div>
             <p className="text-neutral-400 text-sm max-w-[280px] leading-relaxed">AI-powered rehabilitation coaching that keeps patients engaged between visits.</p>
           </div>
@@ -264,7 +264,7 @@ export function LandingPage() {
           </div>
         </div>
         <div className="border-t border-neutral-800 mt-10 md:mt-12 pt-6 max-w-[1200px] mx-auto">
-          <p className="text-neutral-500 text-xs text-center">&copy; 2025 MedBridge. All rights reserved.</p>
+          <p className="text-neutral-500 text-xs text-center">&copy; 2025 CareArc. All rights reserved.</p>
         </div>
       </footer>
     </div>

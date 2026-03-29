@@ -266,7 +266,7 @@ export function ExerciseCard({
       </div>
 
       {/* Expandable instructions section */}
-      <div className={`overflow-hidden transition-all duration-300 ${expanded ? 'max-h-[600px]' : 'max-h-0'}`}>
+      <div className={`overflow-hidden transition-all duration-300 ${expanded ? 'max-h-[1200px]' : 'max-h-0'}`}>
         <div className="px-4 pb-3 border-t border-neutral-100 pt-3">
           {/* How to do it */}
           <div className="mb-3">

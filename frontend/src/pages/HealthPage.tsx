@@ -32,7 +32,7 @@ export function HealthPage() {
         </div>
 
         <h1 className="text-xl font-bold text-neutral-800 mb-2">
-          MedBridge
+          CareArc
         </h1>
 
         <div className="

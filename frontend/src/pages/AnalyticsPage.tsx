@@ -66,7 +66,7 @@ export function AnalyticsPage() {
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 mb-6">
         {/* Section 3: Program Effectiveness */}
         <div className="card p-5">
           <h3 className="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-3">

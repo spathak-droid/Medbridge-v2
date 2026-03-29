@@ -66,7 +66,7 @@ function ClinicianSettings() {
       <div className="card p-5">
         <h3 className="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-3">About</h3>
         <p className="text-sm text-neutral-500 leading-relaxed">
-          MedBridge is a clinical rehabilitation platform that helps you manage patient programs,
+          CareArc is a clinical rehabilitation platform that helps you manage patient programs,
           track adherence, and communicate with patients through AI-assisted coaching.
         </p>
         <p className="text-[11px] text-neutral-400 mt-3">Version 0.2.0</p>
@@ -163,7 +163,7 @@ function PatientSettings() {
       <div className="card p-5">
         <h3 className="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-3">About</h3>
         <p className="text-sm text-neutral-500 leading-relaxed">
-          MedBridge AI Coach is an exercise coaching assistant designed to support your rehabilitation journey.
+          CareArc AI Coach is an exercise coaching assistant designed to support your rehabilitation journey.
           It helps you set goals, track progress, and stay motivated with personalized check-ins.
         </p>
         <p className="text-[11px] text-neutral-400 mt-3">Version 0.2.0</p>

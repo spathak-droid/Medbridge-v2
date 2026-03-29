@@ -127,6 +127,12 @@ async def patient_reply(
     if user.role == "patient" and patient.external_id != user.uid:
         raise HTTPException(status_code=403, detail="Access denied — not your data")
 
+    # Consent gate — verified on every patient interaction
+    if not patient.logged_in:
+        raise HTTPException(status_code=403, detail="Patient must be logged in")
+    if not patient.consent_given:
+        raise HTTPException(status_code=403, detail="Patient consent required for coaching")
+
     msg = DirectMessage(
         sender_role="patient",
         patient_id=body.patient_id,

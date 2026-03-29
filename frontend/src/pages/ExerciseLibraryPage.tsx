@@ -71,7 +71,7 @@ export function ExerciseLibraryPage() {
 
   return (
     <div className="p-4 sm:p-6 animate-fade-in">
-      <div className="flex items-start justify-between gap-4 mb-6 flex-wrap">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4 mb-6">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-neutral-800">Exercise Library</h1>
           <p className="text-sm text-neutral-400 mt-1">
@@ -87,7 +87,7 @@ export function ExerciseLibraryPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search exercises..."
-            className="pl-9 pr-4 py-2.5 border border-neutral-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent w-64"
+            className="pl-9 pr-4 py-2.5 border border-neutral-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent w-full sm:w-64"
           />
         </div>
       </div>
@@ -121,7 +121,7 @@ export function ExerciseLibraryPage() {
       ) : (
         <>
           {/* Program tabs */}
-          <div className="flex gap-2 mb-6 overflow-x-auto pb-1">
+          <div className="flex gap-2 mb-6 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0">
             {programs.map((p) => (
               <button
                 key={p.program_type}
@@ -167,7 +167,7 @@ export function ExerciseLibraryPage() {
               </div>
 
               {/* Exercise grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
                 {currentProgram.exercises.map((ex) => (
                   <ExerciseCard
                     key={ex.id}

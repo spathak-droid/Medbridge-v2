@@ -19,6 +19,14 @@ from app.models.message import Message
 from app.models.patient import Patient
 from app.services.risk_scoring import assess_all_patients_risk
 
+
+def display_name(name: str) -> str:
+    """Never show raw emails as patient names."""
+    if '@' in name:
+        return name.split('@')[0]
+    return name
+
+
 router = APIRouter(prefix="/api/analytics", tags=["analytics"])
 
 
@@ -92,7 +100,7 @@ async def get_analytics_summary(
         feed.append(ActivityFeedItem(
             id=msg.id,
             patient_id=p_id,
-            patient_name=name,
+            patient_name=display_name(name),
             event_type=event_type,
             description=desc,
             timestamp=msg.created_at.isoformat() if msg.created_at else datetime.now(timezone.utc).isoformat(),
@@ -215,7 +223,7 @@ async def get_analytics_v2(
     adherence_map: dict[int, dict | None] = {}
     for p in patients:
         adh = get_adherence_for_patient(p.external_id, p.program_type)
-        if adh is None or (not p.external_id.startswith("PT-") and p.program_type):
+        if adh is None or (p.external_id and not p.external_id.startswith("PT-") and p.program_type):
             real_adh = await compute_adherence(session, p.id, p.external_id, p.program_type)
             if real_adh is not None:
                 adh = real_adh
@@ -259,7 +267,7 @@ async def get_analytics_v2(
                     if fourteen_days_ago <= d <= today:
                         exercise_logs_by_patient[p.id][d] = True
         # For demo patients with last_completed, seed some data
-        if adh and p.external_id.startswith("PT-") and p.id not in exercise_logs_by_patient:
+        if adh and p.external_id and p.external_id.startswith("PT-") and p.id not in exercise_logs_by_patient:
             exercise_logs_by_patient[p.id] = {}
             last_comp = adh.get("last_completed")
             if last_comp:
@@ -288,7 +296,7 @@ async def get_analytics_v2(
         top_factor = assessment.risk_factors[0] if assessment.risk_factors else "Elevated risk"
         attention.append(AttentionPatient(
             patient_id=p.id,
-            name=p.name,
+            name=display_name(p.name),
             risk_level=assessment.risk_level.value,
             risk_score=assessment.risk_score,
             top_risk_factor=top_factor,
@@ -311,7 +319,7 @@ async def get_analytics_v2(
             daily_patient_counts[d] += 1
             if completed:
                 daily_completion_counts[d] += 1
-        heatmap.append(HeatmapRow(patient_id=p.id, name=p.name, cells=cells))
+        heatmap.append(HeatmapRow(patient_id=p.id, name=display_name(p.name), cells=cells))
 
     daily_rates: list[DailyRate] = []
     for d in date_range:
@@ -392,7 +400,7 @@ async def get_analytics_v2(
             if days_silent >= 3:
                 silent_patients.append(SilentPatient(
                     patient_id=p.id,
-                    name=p.name,
+                    name=display_name(p.name),
                     days_silent=days_silent,
                     last_message_at=last_at.isoformat(),
                 ))
@@ -400,7 +408,7 @@ async def get_analytics_v2(
             # No messages at all — consider silent
             silent_patients.append(SilentPatient(
                 patient_id=p.id,
-                name=p.name,
+                name=display_name(p.name),
                 days_silent=999,
                 last_message_at=None,
             ))
@@ -410,7 +418,7 @@ async def get_analytics_v2(
     unanswered_patients: list[UnansweredPatient] = [
         UnansweredPatient(
             patient_id=p.id,
-            name=p.name,
+            name=display_name(p.name),
             unanswered_count=p.unanswered_count,
         )
         for p in patients
@@ -434,7 +442,7 @@ async def get_analytics_v2(
             milestones.append(MilestoneEvent(
                 event_type="goal_confirmed",
                 patient_id=p.id,
-                patient_name=p.name,
+                patient_name=display_name(p.name),
                 description=f"Goal confirmed: {g.raw_text[:80]}",
                 timestamp=g.created_at.isoformat() if g.created_at else now.isoformat(),
             ))
@@ -451,7 +459,7 @@ async def get_analytics_v2(
             milestones.append(MilestoneEvent(
                 event_type="alert_generated",
                 patient_id=p.id,
-                patient_name=p.name,
+                patient_name=display_name(p.name),
                 description=f"Alert: {a.reason[:80]}",
                 timestamp=a.created_at.isoformat() if a.created_at else now.isoformat(),
             ))
@@ -466,14 +474,44 @@ async def get_analytics_v2(
                 milestones.append(MilestoneEvent(
                     event_type="phase_change",
                     patient_id=p.id,
-                    patient_name=p.name,
+                    patient_name=display_name(p.name),
                     description=f"Phase changed to {p.phase.value}",
                     timestamp=phase_time.isoformat(),
                 ))
 
-    # Sort milestones by timestamp desc, take last 5
+    # Positive milestones: streak and adherence achievements
+    for p in patients:
+        adh = adherence_map.get(p.id)
+        if not adh:
+            continue
+
+        # Streak milestones: 7, 14, or 30-day streaks
+        streak = adh.get("current_streak", 0)
+        for threshold in (30, 14, 7):
+            if streak >= threshold:
+                milestones.append(MilestoneEvent(
+                    event_type="streak_milestone",
+                    patient_id=p.id,
+                    patient_name=display_name(p.name),
+                    description=f"{threshold}-day exercise streak!",
+                    timestamp=now.isoformat(),
+                ))
+                break  # Only report highest streak milestone
+
+        # Adherence milestone: crossed 80%
+        adh_pct = adh.get("adherence_percentage", 0)
+        if adh_pct >= 80:
+            milestones.append(MilestoneEvent(
+                event_type="adherence_milestone",
+                patient_id=p.id,
+                patient_name=display_name(p.name),
+                description=f"Adherence at {adh_pct}% — above 80% target",
+                timestamp=now.isoformat(),
+            ))
+
+    # Sort milestones by timestamp desc, take last 10 (more room for positive milestones)
     milestones.sort(key=lambda x: x.timestamp, reverse=True)
-    milestones = milestones[:5]
+    milestones = milestones[:10]
 
     return AnalyticsV2Response(
         attention=attention,

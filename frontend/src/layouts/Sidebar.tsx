@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { usePatient } from '../hooks/usePatient'
@@ -38,10 +38,12 @@ export function Sidebar() {
     return () => clearInterval(interval)
   }, [user?.role, patientId])
 
-  const handleSignOut = async () => {
+  const [showSignOutConfirm, setShowSignOutConfirm] = useState(false)
+
+  const handleSignOut = useCallback(async () => {
     await signOut()
     navigate('/landing')
-  }
+  }, [signOut, navigate])
 
   return (
     <aside className="
@@ -63,7 +65,7 @@ export function Sidebar() {
             <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" />
           </svg>
         </div>
-        <span className="text-lg font-bold text-neutral-800 tracking-tight">MedBridge</span>
+        <span className="text-lg font-bold text-neutral-800 tracking-tight" style={{ fontFamily: 'var(--font-brand)' }}>CareArc</span>
       </div>
 
       {/* Nav */}
@@ -129,20 +131,50 @@ export function Sidebar() {
         <div className="px-3 py-4 border-t border-neutral-100">
           <div className="flex items-center gap-3 px-3 py-2 mb-2">
             <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 text-sm font-bold shrink-0">
-              {user.name.charAt(0).toUpperCase()}
+              {(user.name || user.email || user.role).charAt(0).toUpperCase()}
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-medium text-neutral-800 truncate">{user.name}</p>
+              <p className="text-sm font-medium text-neutral-800 truncate">{user.name || user.email || user.role}</p>
               <p className="text-[11px] text-neutral-400 capitalize">{user.role}</p>
             </div>
           </div>
           <button
-            onClick={handleSignOut}
+            onClick={() => setShowSignOutConfirm(true)}
             className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-neutral-500 hover:text-red-600 hover:bg-red-50 transition-all duration-150 cursor-pointer"
           >
             <SignOutIcon className="w-[18px] h-[18px]" />
             Sign Out
           </button>
+        </div>
+      )}
+
+      {/* Sign Out Confirmation Modal */}
+      {showSignOutConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowSignOutConfirm(false)} />
+          <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 text-center animate-fade-in-up">
+            <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-4">
+              <svg className="w-6 h-6 text-red-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-bold text-neutral-800 mb-1">Sign out?</h3>
+            <p className="text-sm text-neutral-500 mb-6">You'll need to sign in again to access your account.</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowSignOutConfirm(false)}
+                className="btn-ghost flex-1 py-2.5"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSignOut}
+                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-xl transition cursor-pointer"
+              >
+                Sign Out
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </aside>

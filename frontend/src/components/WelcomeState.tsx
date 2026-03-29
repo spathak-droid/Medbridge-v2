@@ -63,7 +63,7 @@ export function WelcomeState({ onStartOnboarding, loading }: WelcomeStateProps) 
         text-neutral-800
         mb-3
       ">
-        Welcome to MedBridge Coach
+        Welcome to CareArc Coach
       </h2>
       <p className="
         text-neutral-500
