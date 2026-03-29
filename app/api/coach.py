@@ -20,6 +20,8 @@ from app.models.patient import Patient
 from app.services.coach_service import run_coach_turn, run_coach_turn_stream
 from app.services.disengagement import DisengagementHandler
 from app.services.phase_machine import PhaseStateMachine
+from app.services.safety_classifier import SafetyClassifierService
+from app.models.enums import SafetyClassification
 
 logger = logging.getLogger(__name__)
 
@@ -263,6 +265,46 @@ async def create_new_conversation(
     )
 
 
+async def _classify_and_store_patient_message(
+    session: AsyncSession, patient: Patient, conversation: Conversation, content: str,
+) -> Message:
+    """Classify patient message for safety, store it, and alert clinician if crisis."""
+    now = datetime.now(timezone.utc)
+    classifier = SafetyClassifierService()
+    result = classifier.classify(content)
+    safety = SafetyStatus.PASSED
+    if result.classification == SafetyClassification.CRISIS:
+        safety = SafetyStatus.BLOCKED
+
+    msg = Message(
+        conversation_id=conversation.id,
+        role=MessageRole.PATIENT,
+        content=content,
+        safety_status=safety,
+        created_at=now,
+    )
+    session.add(msg)
+    await session.commit()
+    await session.refresh(msg)
+
+    if result.classification == SafetyClassification.CRISIS:
+        try:
+            from app.models.alert import Alert
+            from app.models.enums import AlertUrgency
+            alert = Alert(
+                patient_id=patient.id,
+                reason=f"Crisis signal in patient message: {content[:200]}",
+                urgency=AlertUrgency.CRITICAL,
+            )
+            session.add(alert)
+            await session.commit()
+            logger.warning("CRISIS alert created for patient %s: %s", patient.id, content[:100])
+        except Exception:
+            logger.exception("Failed to create crisis alert for patient %s", patient.id)
+
+    return msg
+
+
 @router.post("/message", response_model=SendMessageResponse)
 async def send_message(
     body: SendMessageRequest,
@@ -281,18 +323,8 @@ async def send_message(
     # Resolve conversation (by ID or latest)
     conversation = await _resolve_conversation(session, patient, body.conversation_id)
 
-    # Store patient message
-    now = datetime.now(timezone.utc)
-    patient_msg = Message(
-        conversation_id=conversation.id,
-        role=MessageRole.PATIENT,
-        content=body.content,
-        safety_status=SafetyStatus.PASSED,
-        created_at=now,
-    )
-    session.add(patient_msg)
-    await session.commit()
-    await session.refresh(patient_msg)
+    # Classify and store patient message (alerts clinician on crisis)
+    patient_msg = await _classify_and_store_patient_message(session, patient, conversation, body.content)
 
     # Track patient response for disengagement (resets unanswered count,
     # transitions DORMANT→RE_ENGAGING if applicable)
@@ -365,18 +397,8 @@ async def send_message_stream(
     # Resolve conversation (by ID or latest)
     conversation = await _resolve_conversation(session, patient, body.conversation_id)
 
-    # Store patient message
-    now = datetime.now(timezone.utc)
-    patient_msg = Message(
-        conversation_id=conversation.id,
-        role=MessageRole.PATIENT,
-        content=body.content,
-        safety_status=SafetyStatus.PASSED,
-        created_at=now,
-    )
-    session.add(patient_msg)
-    await session.commit()
-    await session.refresh(patient_msg)
+    # Classify and store patient message (alerts clinician on crisis)
+    patient_msg = await _classify_and_store_patient_message(session, patient, conversation, body.content)
 
     # Track patient response for disengagement
     try:
