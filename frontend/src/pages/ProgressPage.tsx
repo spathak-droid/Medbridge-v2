@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import gsap from 'gsap'
 import { usePatient } from '../hooks/usePatient'
 import { getAdherence, getCheckins, getGoals, getProgram, getSchedule } from '../lib/api'
-import type { AdherenceSummary, DailyCheckin, Goal, ProgramSummary, ScheduleEventItem } from '../lib/types'
-import { adherenceBgColor, phaseLabel } from '../lib/utils'
+import type { AdherenceSummary, DailyCheckin, Goal, ProgramSummary } from '../lib/types'
+import { phaseLabel } from '../lib/utils'
 import { LoadingSkeleton } from '../components/ui/LoadingSkeleton'
 import { ProgressStepper } from '../components/ui/ProgressStepper'
 import { TrendChart } from '../components/ui/TrendChart'
@@ -23,7 +23,6 @@ export function ProgressPage() {
   const [adherence, setAdherence] = useState<AdherenceSummary | null>(null)
   const [goals, setGoals] = useState<Goal[]>([])
   const [program, setProgram] = useState<ProgramSummary | null>(null)
-  const [schedule, setSchedule] = useState<ScheduleEventItem[]>([])
   const [checkins, setCheckins] = useState<DailyCheckin[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -39,11 +38,10 @@ export function ProgressPage() {
       getSchedule(patientId).catch(() => []),
       getCheckins(patientId).catch(() => []),
     ])
-      .then(([adh, g, prog, sched, chk]) => {
+      .then(([adh, g, prog, , chk]) => {
         setAdherence(adh)
         setGoals(g)
         setProgram(prog)
-        setSchedule(sched)
         setCheckins(chk)
       })
       .catch((err) => setError(err.message || 'Failed to load progress'))

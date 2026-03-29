@@ -1,8 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { usePatient } from '../hooks/usePatient'
 import { useAuth } from '../contexts/AuthContext'
-import { updateConsent } from '../lib/api'
-import { phaseColor, phaseLabel } from '../lib/utils'
 import { useStaggerIn } from '../hooks/useGsap'
 import { LoadingSkeleton } from '../components/ui/LoadingSkeleton'
 
@@ -64,7 +62,7 @@ function ToggleSwitch({ checked, onChange }: { checked: boolean; onChange: (v: b
 
 function PatientSettings() {
   const { user, signOut } = useAuth()
-  const { patient, patientId, loading } = usePatient()
+  const { patient, loading } = usePatient()
   const [prefs, setPrefs] = useState<NotificationPrefs>(loadPrefs)
   const [showDeleteMsg, setShowDeleteMsg] = useState(false)
   const [signingOut, setSigningOut] = useState(false)

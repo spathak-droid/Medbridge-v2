@@ -794,7 +794,6 @@ export function ProgramPage() {
             const isDone = completedToday.includes(ex.id)
             const isActive = i === activeIndex
             const isNext = !isDone && i > activeIndex && !exercises.slice(activeIndex + 1, i).some((e) => !completedToday.includes(e.id))
-            const vidProg = videoProgress[ex.id]
             const thumbUrl = ex.video_url
               ? `https://img.youtube.com/vi/${extractYoutubeId(ex.video_url)}/default.jpg`
               : null
