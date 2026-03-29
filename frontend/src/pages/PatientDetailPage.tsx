@@ -15,6 +15,7 @@ import {
   getPatientNotes,
   getPatients,
   getSchedule,
+  getVideoEngagement,
   rejectGoal,
 } from '../lib/api'
 import type {
@@ -24,6 +25,7 @@ import type {
   Goal,
   PatientSummary,
   ScheduleEventItem,
+  VideoEngagement,
 } from '../lib/types'
 import { phaseLabel, phaseColor } from '../lib/utils'
 import { PatientInsights } from '../components/clinician/PatientInsights'
@@ -64,6 +66,7 @@ export function PatientDetailPage() {
   const [showProgramSelect, setShowProgramSelect] = useState(false)
   const [programLoading, setProgramLoading] = useState(false)
   const [availablePrograms, setAvailablePrograms] = useState<{ program_type: string; program_name: string; exercise_count: number }[]>([])
+  const [videoEngagement, setVideoEngagement] = useState<VideoEngagement | null>(null)
 
   const fetchData = () => {
     setError(null)
@@ -91,6 +94,7 @@ export function PatientDetailPage() {
   useEffect(() => {
     fetchData()
     getAvailablePrograms().then(setAvailablePrograms).catch(() => {})
+    getVideoEngagement(patientId).then(setVideoEngagement).catch(() => {})
   }, [patientId])
 
   if (loading) {
@@ -214,11 +218,11 @@ export function PatientDetailPage() {
 
       {/* Tab Content */}
       {activeTab === 'overview' && (
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4 sm:gap-6">
           {/* Main Content */}
           <div className="space-y-6">
             {/* Metric Cards Row */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
               {/* Program Progress */}
               <div className="card p-5">
                 <h4 className="text-sm font-semibold text-neutral-700 mb-3">Program Progress</h4>
@@ -333,7 +337,7 @@ export function PatientDetailPage() {
                       type="time"
                       value={reminderTime}
                       onChange={(e) => setReminderTime(e.target.value)}
-                      className="w-24 px-2.5 py-1.5 border border-neutral-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      className="w-full sm:w-24 px-2.5 py-1.5 border border-neutral-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-primary-500"
                     />
                   </div>
                   <button
@@ -609,8 +613,63 @@ export function PatientDetailPage() {
       )}
 
       {activeTab === 'program' && (
-        <div className="card p-5">
-          <ProgramCompletionView patientId={patientId} />
+        <div className="space-y-4">
+          <div className="card p-5">
+            <ProgramCompletionView patientId={patientId} />
+          </div>
+
+          {videoEngagement && videoEngagement.exercises.length > 0 && (
+            <div className="card p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-neutral-700">Video Engagement</h3>
+                <span className={`text-sm font-bold ${
+                  videoEngagement.overall_video_adherence >= 80 ? 'text-success-600' :
+                  videoEngagement.overall_video_adherence >= 50 ? 'text-accent-600' :
+                  'text-warning-600'
+                }`}>
+                  {videoEngagement.overall_video_adherence.toFixed(0)}% overall
+                </span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-neutral-100">
+                      <th className="text-left py-2 pr-4 text-neutral-500 font-medium">Exercise</th>
+                      <th className="text-center py-2 px-2 text-neutral-500 font-medium">Avg %</th>
+                      <th className="text-center py-2 px-2 text-neutral-500 font-medium">Times</th>
+                      <th className="text-center py-2 px-2 text-neutral-500 font-medium">Days</th>
+                      <th className="text-right py-2 pl-2 text-neutral-500 font-medium">Last Watched</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {videoEngagement.exercises.map((ex) => (
+                      <tr key={ex.exercise_id} className="border-b border-neutral-50">
+                        <td className="py-2 pr-4">
+                          <div className="flex items-center gap-2">
+                            <div className={`w-2 h-2 rounded-full ${
+                              ex.avg_watch_percentage >= 80 ? 'bg-success-500' :
+                              ex.avg_watch_percentage >= 50 ? 'bg-accent-500' :
+                              ex.avg_watch_percentage > 0 ? 'bg-warning-500' :
+                              'bg-neutral-200'
+                            }`} />
+                            <span className="text-neutral-700">{ex.exercise_name}</span>
+                          </div>
+                        </td>
+                        <td className="text-center py-2 px-2 font-medium text-neutral-600">
+                          {ex.avg_watch_percentage.toFixed(0)}%
+                        </td>
+                        <td className="text-center py-2 px-2 text-neutral-600">{ex.total_watches}</td>
+                        <td className="text-center py-2 px-2 text-neutral-600">{ex.days_watched}</td>
+                        <td className="text-right py-2 pl-2 text-neutral-400">
+                          {ex.last_watched || 'Never'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
