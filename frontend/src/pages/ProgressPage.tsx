@@ -115,7 +115,8 @@ export function ProgressPage() {
     { label: 'Maintenance', status: currentPhase === 'RE_ENGAGING' || currentPhase === 'DORMANT' ? 'active' as const : 'upcoming' as const },
   ]
 
-  const confirmedGoal = goals.find((g) => g.confirmed)
+  const confirmedGoal = goals.find((g) => g.confirmed) || goals[goals.length - 1] || null
+  const goalSummary = patient?.goal_summary
 
   const exerciseStats = adherence?.per_exercise
     ? Object.entries(adherence.per_exercise).map(([id, stats]) => {
@@ -285,6 +286,8 @@ export function ProgressPage() {
                 </div>
               </div>
             </>
+          ) : goalSummary ? (
+            <h3 className="text-lg font-semibold leading-relaxed">{goalSummary}</h3>
           ) : (
             <p className="text-sm text-white/70">No goal set yet. Talk to your coach to set one.</p>
           )}
