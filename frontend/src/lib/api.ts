@@ -20,6 +20,7 @@ import type {
   SendMessageRequest,
   SendMessageResponse,
   StartOnboardingResponse,
+  VideoEngagement,
 } from './types'
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? ''
@@ -199,6 +200,35 @@ export function clearProgram(patientId: number): Promise<{ cleared: boolean }> {
 // Patient adherence
 export function getAdherence(patientId: number): Promise<AdherenceSummary | null> {
   return apiFetch<AdherenceSummary | null>(`/api/patients/${patientId}/adherence`)
+}
+
+// Video progress
+export function logVideoProgress(
+  patientId: number,
+  exerciseId: string,
+  watchPercentage: number,
+  watchedDate: string
+): Promise<{ saved: boolean; exercise_id: string; watch_percentage: number; is_watched: boolean }> {
+  return apiFetch(`/api/patients/${patientId}/exercises/video-progress`, {
+    method: 'POST',
+    body: JSON.stringify({
+      exercise_id: exerciseId,
+      watch_percentage: watchPercentage,
+      watched_date: watchedDate,
+    }),
+  })
+}
+
+export function getVideoProgress(
+  patientId: number,
+  date?: string
+): Promise<{ video_progress: Record<string, { watch_percentage: number; is_watched: boolean }> }> {
+  const params = date ? `?target_date=${date}` : ''
+  return apiFetch(`/api/patients/${patientId}/exercises/video-progress${params}`)
+}
+
+export function getVideoEngagement(patientId: number): Promise<VideoEngagement> {
+  return apiFetch<VideoEngagement>(`/api/patients/${patientId}/video-engagement`)
 }
 
 // Patient schedule

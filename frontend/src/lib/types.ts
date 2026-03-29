@@ -122,6 +122,7 @@ export interface Exercise {
   frequency: string
   muscle_groups: string[]
   difficulty: string
+  video_id?: string
   video_url?: string
   video_title?: string
   tips?: string
@@ -146,8 +147,29 @@ export interface AdherenceSummary {
   adherence_percentage: number
   last_completed: string | null
   weekly_breakdown: { week: number; completed: number; total: number }[]
-  per_exercise: Record<string, { completed: number; total: number; pct: number }>
-  daily_log: { date: string; completed: boolean; exercises_done: number }[]
+  per_exercise: Record<string, { completed: number; video_watched?: number; total: number; pct: number }>
+  daily_log: { date: string; completed: boolean; exercises_done: number; videos_watched?: number }[]
+}
+
+export interface VideoProgress {
+  [exerciseId: string]: {
+    watch_percentage: number
+    is_watched: boolean
+  }
+}
+
+export interface VideoEngagementExercise {
+  exercise_id: string
+  exercise_name: string
+  total_watches: number
+  avg_watch_percentage: number
+  last_watched: string | null
+  days_watched: number
+}
+
+export interface VideoEngagement {
+  exercises: VideoEngagementExercise[]
+  overall_video_adherence: number
 }
 
 export interface ScheduleEventItem {
