@@ -5,7 +5,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
@@ -18,6 +18,7 @@ from app.models.conversation import Conversation
 from app.models.enums import PatientPhase, ScheduleStatus
 from app.models.exercise_log import ExerciseLog
 from app.models.exercise_rating import ExerciseRating
+from app.models.video_watch_log import VideoWatchLog
 from app.models.goal import Goal
 from app.models.patient_insight import PatientInsight
 from app.models.message import Message
@@ -1148,3 +1149,167 @@ async def get_rated_exercises(
         )
     )
     return list(result.scalars().all())
+
+
+# ── Video Progress ───────────────────────────────────────────────────
+
+
+class VideoProgressRequest(BaseModel):
+    exercise_id: str
+    watch_percentage: float
+    watched_date: str
+
+
+class VideoProgressResponse(BaseModel):
+    saved: bool
+    exercise_id: str
+    watch_percentage: float
+    is_watched: bool
+
+
+@router.post("/{patient_id}/exercises/video-progress", response_model=VideoProgressResponse)
+async def log_video_progress(
+    patient_id: int,
+    body: VideoProgressRequest,
+    session: AsyncSession = Depends(get_session),
+    _user: AuthenticatedUser = Depends(require_own_patient_data),
+) -> VideoProgressResponse:
+    """Log or update video watch progress for an exercise.
+
+    Upsert: only updates if new percentage > stored percentage.
+    Clamps watch_percentage to 0-100.
+    """
+    result = await session.execute(select(Patient).where(Patient.id == patient_id))
+    patient = result.scalar_one_or_none()
+    if patient is None:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    # Clamp percentage to 0-100
+    pct = max(0.0, min(100.0, body.watch_percentage))
+    watched_date = date.fromisoformat(body.watched_date)
+
+    # Check for existing record (upsert)
+    existing_result = await session.execute(
+        select(VideoWatchLog).where(
+            VideoWatchLog.patient_id == patient_id,
+            VideoWatchLog.exercise_id == body.exercise_id,
+            VideoWatchLog.watched_date == watched_date,
+        )
+    )
+    existing = existing_result.scalar_one_or_none()
+
+    if existing is not None:
+        # Only update if new percentage is higher
+        if pct > existing.watch_percentage:
+            existing.watch_percentage = pct
+            session.add(existing)
+            await session.commit()
+            await session.refresh(existing)
+        final_pct = existing.watch_percentage
+    else:
+        log = VideoWatchLog(
+            patient_id=patient_id,
+            exercise_id=body.exercise_id,
+            watch_percentage=pct,
+            watched_date=watched_date,
+        )
+        session.add(log)
+        await session.commit()
+        final_pct = pct
+
+    return VideoProgressResponse(
+        saved=True,
+        exercise_id=body.exercise_id,
+        watch_percentage=final_pct,
+        is_watched=final_pct >= 80,
+    )
+
+
+@router.get("/{patient_id}/exercises/video-progress")
+async def get_video_progress(
+    patient_id: int,
+    target_date: str | None = None,
+    session: AsyncSession = Depends(get_session),
+    _user: AuthenticatedUser = Depends(require_own_patient_data),
+) -> dict:
+    """Return video watch progress for a given date (defaults to today).
+
+    Returns: {"video_progress": {"exercise_id": {"watch_percentage": float, "is_watched": bool}}}
+    """
+    d = date.fromisoformat(target_date) if target_date else date.today()
+
+    result = await session.execute(
+        select(VideoWatchLog).where(
+            VideoWatchLog.patient_id == patient_id,
+            VideoWatchLog.watched_date == d,
+        )
+    )
+    logs = result.scalars().all()
+
+    video_progress: dict[str, dict] = {}
+    for log in logs:
+        video_progress[log.exercise_id] = {
+            "watch_percentage": log.watch_percentage,
+            "is_watched": log.watch_percentage >= 80,
+        }
+
+    return {"video_progress": video_progress}
+
+
+@router.get("/{patient_id}/video-engagement")
+async def get_video_engagement(
+    patient_id: int,
+    session: AsyncSession = Depends(get_session),
+    _user: AuthenticatedUser = Depends(require_own_patient_data),
+) -> dict:
+    """Aggregate video watch data for clinician view.
+
+    Groups by exercise_id: total_watches, avg_watch_percentage, last_watched, days_watched.
+    Returns overall_video_adherence percentage.
+    """
+    result = await session.execute(select(Patient).where(Patient.id == patient_id))
+    patient = result.scalar_one_or_none()
+    if patient is None:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    # Get program exercise names for mapping
+    program = get_program_for_patient(patient.external_id, patient.program_type)
+    exercise_names: dict[str, str] = {}
+    if program:
+        for ex in program.get("exercises", []):
+            exercise_names[ex["id"]] = ex.get("name", ex["id"])
+
+    # Aggregate video watch data grouped by exercise_id
+    agg_result = await session.execute(
+        select(
+            VideoWatchLog.exercise_id,
+            func.count(VideoWatchLog.id).label("total_watches"),
+            func.avg(VideoWatchLog.watch_percentage).label("avg_watch_percentage"),
+            func.max(VideoWatchLog.watched_date).label("last_watched"),
+            func.count(func.distinct(VideoWatchLog.watched_date)).label("days_watched"),
+        )
+        .where(VideoWatchLog.patient_id == patient_id)
+        .group_by(VideoWatchLog.exercise_id)
+    )
+    rows = agg_result.all()
+
+    exercises: dict[str, dict] = {}
+    total_avg = 0.0
+    for row in rows:
+        avg_pct = float(row.avg_watch_percentage) if row.avg_watch_percentage else 0.0
+        exercises[row.exercise_id] = {
+            "exercise_name": exercise_names.get(row.exercise_id, row.exercise_id),
+            "total_watches": row.total_watches,
+            "avg_watch_percentage": round(avg_pct, 1),
+            "last_watched": str(row.last_watched) if row.last_watched else None,
+            "days_watched": row.days_watched,
+        }
+        total_avg += avg_pct
+
+    overall_adherence = round(total_avg / len(rows), 1) if rows else 0.0
+
+    return {
+        "patient_id": patient_id,
+        "exercises": exercises,
+        "overall_video_adherence": overall_adherence,
+    }
