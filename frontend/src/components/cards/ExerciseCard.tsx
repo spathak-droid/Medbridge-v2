@@ -1,6 +1,28 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import type { Exercise } from '../../lib/types'
 import { Badge } from '../ui/Badge'
+
+// Load YouTube IFrame API once globally
+let ytApiLoaded = false
+let ytApiReady = false
+const ytReadyCallbacks: (() => void)[] = []
+
+function loadYouTubeApi(): Promise<void> {
+  return new Promise((resolve) => {
+    if (ytApiReady) { resolve(); return }
+    ytReadyCallbacks.push(resolve)
+    if (ytApiLoaded) return
+    ytApiLoaded = true
+    const tag = document.createElement('script')
+    tag.src = 'https://www.youtube.com/iframe_api'
+    document.head.appendChild(tag)
+    ;(window as any).onYouTubeIframeAPIReady = () => {
+      ytApiReady = true
+      ytReadyCallbacks.forEach((cb) => cb())
+      ytReadyCallbacks.length = 0
+    }
+  })
+}
 
 interface ExerciseCardProps {
   exercise: Exercise
@@ -8,6 +30,9 @@ interface ExerciseCardProps {
   isCompletedToday?: boolean
   onToggleComplete?: (exerciseId: string) => void
   isLogging?: boolean
+  videoWatchPct?: number
+  isVideoWatched?: boolean
+  onVideoProgress?: (exerciseId: string, percentage: number) => void
 }
 
 // Muscle group to emoji icon mapping for visual flair
@@ -47,8 +72,76 @@ export function ExerciseCard({
   isCompletedToday,
   onToggleComplete,
   isLogging,
+  videoWatchPct,
+  isVideoWatched,
+  onVideoProgress,
 }: ExerciseCardProps) {
   const [expanded, setExpanded] = useState(false)
+
+  const playerRef = useRef<any>(null)
+  const playerContainerRef = useRef<string>(`yt-player-${exercise.id}`)
+  const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const maxWatchPctRef = useRef(videoWatchPct ?? 0)
+
+  useEffect(() => {
+    maxWatchPctRef.current = Math.max(maxWatchPctRef.current, videoWatchPct ?? 0)
+  }, [videoWatchPct])
+
+  useEffect(() => {
+    if (!expanded || !exercise.video_id) return
+
+    let player: any = null
+
+    loadYouTubeApi().then(() => {
+      if (!expanded) return
+      player = new (window as any).YT.Player(playerContainerRef.current, {
+        videoId: exercise.video_id,
+        host: 'https://www.youtube-nocookie.com',
+        playerVars: { rel: 0, modestbranding: 1, playsinline: 1 },
+        events: {
+          onStateChange: (event: any) => {
+            const YT = (window as any).YT
+            if (event.data === YT.PlayerState.PLAYING) {
+              if (!progressIntervalRef.current) {
+                progressIntervalRef.current = setInterval(() => {
+                  if (!player?.getCurrentTime || !player?.getDuration) return
+                  const pct = (player.getCurrentTime() / player.getDuration()) * 100
+                  maxWatchPctRef.current = Math.max(maxWatchPctRef.current, pct)
+                }, 5000)
+              }
+            } else if (event.data === YT.PlayerState.PAUSED || event.data === YT.PlayerState.ENDED) {
+              if (progressIntervalRef.current) {
+                clearInterval(progressIntervalRef.current)
+                progressIntervalRef.current = null
+              }
+              if (player?.getCurrentTime && player?.getDuration) {
+                const pct = (player.getCurrentTime() / player.getDuration()) * 100
+                maxWatchPctRef.current = Math.max(maxWatchPctRef.current, pct)
+              }
+              if (onVideoProgress && maxWatchPctRef.current > 0) {
+                onVideoProgress(exercise.id, maxWatchPctRef.current)
+              }
+            }
+          },
+        },
+      })
+      playerRef.current = player
+    })
+
+    return () => {
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current)
+        progressIntervalRef.current = null
+      }
+      if (onVideoProgress && maxWatchPctRef.current > (videoWatchPct ?? 0)) {
+        onVideoProgress(exercise.id, maxWatchPctRef.current)
+      }
+      if (playerRef.current?.destroy) {
+        playerRef.current.destroy()
+        playerRef.current = null
+      }
+    }
+  }, [expanded, exercise.video_id])
 
   return (
     <div
@@ -135,6 +228,20 @@ export function ExerciseCard({
 
         {/* Completion percentage */}
         <div className="flex flex-col items-end gap-1 flex-shrink-0">
+          {exercise.video_id && (
+            <div className={`flex items-center gap-1 ${
+              (videoWatchPct ?? 0) >= 80 ? 'text-success-500' : 'text-neutral-300'
+            }`}>
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M8 5v14l11-7z" />
+              </svg>
+              {(videoWatchPct ?? 0) >= 80 && (
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                </svg>
+              )}
+            </div>
+          )}
           {completionPct !== undefined && (
             <span className={`text-sm font-bold ${
               completionPct >= 80 ? 'text-success-600' :
@@ -204,28 +311,43 @@ export function ExerciseCard({
             </div>
           </div>
 
-          {/* Video link */}
-          {exercise.video_url && (
-            <a
-              href={exercise.video_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2.5 p-2.5 mb-3 bg-red-50 rounded-lg border border-red-100 hover:bg-red-100 transition-colors group"
-            >
+          {/* Embedded video player */}
+          {exercise.video_id && (
+            <div className="mb-3">
+              <div className="relative w-full rounded-lg overflow-hidden bg-neutral-900" style={{ paddingBottom: '56.25%' }}>
+                <div
+                  id={playerContainerRef.current}
+                  className="absolute inset-0 w-full h-full"
+                />
+              </div>
+              <div className="flex items-center gap-2 mt-2">
+                <div className="flex-1 h-1.5 bg-neutral-100 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-300 ${
+                      (videoWatchPct ?? 0) >= 80 ? 'bg-success-500' : 'bg-red-400'
+                    }`}
+                    style={{ width: `${Math.min(videoWatchPct ?? 0, 100)}%` }}
+                  />
+                </div>
+                <span className={`text-[10px] font-medium ${
+                  (videoWatchPct ?? 0) >= 80 ? 'text-success-600' : 'text-neutral-400'
+                }`}>
+                  {(videoWatchPct ?? 0) >= 80 ? 'Watched' : `${Math.round(videoWatchPct ?? 0)}%`}
+                </span>
+              </div>
+            </div>
+          )}
+          {/* Fallback: external link if no video_id but has video_url */}
+          {!exercise.video_id && exercise.video_url && (
+            <a href={exercise.video_url} target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-2.5 p-2.5 mb-3 bg-red-50 rounded-lg border border-red-100 hover:bg-red-100 transition-colors group">
               <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-red-500 text-white flex items-center justify-center group-hover:bg-red-600 transition-colors">
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M8 5v14l11-7z" />
-                </svg>
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[11px] font-semibold text-neutral-800 truncate">
-                  {exercise.video_title || 'Watch Video Guide'}
-                </p>
+                <p className="text-[11px] font-semibold text-neutral-800 truncate">{exercise.video_title || 'Watch Video Guide'}</p>
                 <p className="text-[10px] text-neutral-400">Watch on YouTube</p>
               </div>
-              <svg className="w-3.5 h-3.5 text-neutral-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
-              </svg>
             </a>
           )}
 
