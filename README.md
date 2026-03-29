@@ -2,6 +2,48 @@
 
 CareArc is a full-stack web application that pairs physical therapy patients with an AI coaching assistant. It combines a conversational rehab coach (powered by LLMs via LangGraph) with a clinician dashboard for monitoring patient engagement, adherence, and outcomes — all built with HIPAA-compliant guardrails.
 
+## Screenshots
+
+### Patient Experience
+
+<table>
+  <tr>
+    <td align="center"><strong>Landing Page</strong></td>
+    <td align="center"><strong>Exercise Program</strong></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/patient/landing.png" width="100%" alt="Landing Page" /></td>
+    <td><img src="docs/screenshots/patient/program.png" width="100%" alt="Exercise Program" /></td>
+  </tr>
+  <tr>
+    <td align="center" colspan="2"><strong>Recovery Progress</strong></td>
+  </tr>
+  <tr>
+    <td colspan="2"><img src="docs/screenshots/patient/progress.png" width="100%" alt="Recovery Progress" /></td>
+  </tr>
+</table>
+
+### Clinician Portal
+
+<table>
+  <tr>
+    <td align="center"><strong>Patient Dashboard</strong></td>
+    <td align="center"><strong>Exercise Library</strong></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/clinician/dashboard.png" width="100%" alt="Clinician Dashboard" /></td>
+    <td><img src="docs/screenshots/clinician/exercise-library.png" width="100%" alt="Exercise Library" /></td>
+  </tr>
+  <tr>
+    <td align="center" colspan="2"><strong>Analytics</strong></td>
+  </tr>
+  <tr>
+    <td colspan="2"><img src="docs/screenshots/clinician/analytics.png" width="100%" alt="Analytics Dashboard" /></td>
+  </tr>
+</table>
+
+---
+
 ## What It Does
 
 ### For Patients
