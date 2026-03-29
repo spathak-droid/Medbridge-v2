@@ -235,19 +235,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const demoLogin = (role: UserRole) => {
-    const demoUser: AuthUser = {
-      uid: `demo-${role}`,
-      email: role === 'patient' ? 'demo-patient@carearc.com' : 'demo-clinician@carearc.com',
-      role,
-      name: role === 'patient' ? 'Demo Patient' : 'Dr. Demo',
-    }
-    // Store demo credentials so the API layer can send X-Demo-User header
-    localStorage.setItem('carearc_demo_uid', demoUser.uid)
-    localStorage.setItem('carearc_demo_role', role)
-    setIsDemo(true)
-    setUser(demoUser)
-    setLoading(false)
+  const demoLogin = async (role: UserRole) => {
+    const email = role === 'patient'
+      ? (import.meta.env.VITE_DEMO_PATIENT_EMAIL || 'tom@email.com')
+      : (import.meta.env.VITE_DEMO_CLINICIAN_EMAIL || 'bob@email.com')
+    const password = role === 'patient'
+      ? (import.meta.env.VITE_DEMO_PATIENT_PASSWORD || 'tom2026')
+      : (import.meta.env.VITE_DEMO_CLINICIAN_PASSWORD || 'bob2026')
+    await signIn(email, password, role)
   }
 
   const signOut = async () => {
