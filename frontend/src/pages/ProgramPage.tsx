@@ -362,7 +362,6 @@ export function ProgramPage() {
               onToggleComplete={handleToggle}
               isLogging={loggingExercise === ex.id}
               videoWatchPct={vidProg?.watch_percentage ?? 0}
-              isVideoWatched={vidProg?.is_watched ?? false}
               onVideoProgress={handleVideoProgress}
             />
           )

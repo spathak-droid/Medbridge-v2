@@ -31,7 +31,7 @@ interface ExerciseCardProps {
   onToggleComplete?: (exerciseId: string) => void
   isLogging?: boolean
   videoWatchPct?: number
-  isVideoWatched?: boolean
+
   onVideoProgress?: (exerciseId: string, percentage: number) => void
 }
 
@@ -73,7 +73,7 @@ export function ExerciseCard({
   onToggleComplete,
   isLogging,
   videoWatchPct,
-  isVideoWatched,
+
   onVideoProgress,
 }: ExerciseCardProps) {
   const [expanded, setExpanded] = useState(false)
